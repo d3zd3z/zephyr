@@ -19,6 +19,8 @@
 #include <asm_inline.h>
 #include <boot/signature_header.h>
 
+#include <mbedtls/sha256.h>
+
 /*
  * This matches the ARM vector table.
  */
@@ -26,6 +28,8 @@ struct vector_table {
 	uint32_t msp;
 	uint32_t reset;
 };
+
+uint8_t hash[32];
 
 static void find_signature(uintptr_t flash_base)
 {
@@ -47,6 +51,22 @@ static void find_signature(uintptr_t flash_base)
 	base = head->data_rom_start;
 	base += (head->data_ram_end - head->data_ram_start);
 	printk("Base: 0x%x\n", base);
+	printk("Checking signature: %p, len=0x%x\n",
+	       (void *)flash_base,
+	       base - flash_base);
+	{
+		mbedtls_sha256_context ctx;
+
+		mbedtls_sha256_init(&ctx);
+		mbedtls_sha256_starts(&ctx, 0);
+		mbedtls_sha256_update(&ctx, (const uint8_t *)flash_base,
+				      base - flash_base);
+		mbedtls_sha256_finish(&ctx, hash);
+		mbedtls_sha256_free(&ctx);
+	}
+	printk("Done, sig at %p\n", hash);
+	for (;;)
+		;
 }
 
 void main(void)
