@@ -10,3 +10,4 @@ obj-y = vector_table.o reset.o \
 
 obj-$(CONFIG_IRQ_VECTOR_TABLE_SOC) += irq_vector_table.o
 obj-$(CONFIG_SW_ISR_TABLE) += sw_isr_table.o
+obj-$(CONFIG_SIGNATURE_HEADER) += signature_header.o

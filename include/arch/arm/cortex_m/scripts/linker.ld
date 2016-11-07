@@ -85,6 +85,11 @@ SECTIONS
 	KEEP(*(.exc_vector_table))
 	KEEP(*(".exc_vector_table.*"))
 
+#if defined(CONFIG_SIGNATURE_HEADER)
+	KEEP(*(.signature_header))
+	KEEP(*(".signature_header.*"))
+#endif
+
 #if defined(CONFIG_GDB_INFO) && !defined(CONFIG_SW_ISR_TABLE)
 	KEEP(*(.gdb_stub_irq_vector_table))
 	KEEP(*(".gdb_stub_irq_vector_table.*"))
