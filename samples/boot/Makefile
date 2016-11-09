@@ -1,4 +1,4 @@
-KERNEL_TYPE = nano
+KERNEL_TYPE = unified
 BOARD ?= 96b_carbon
 CONF_FILE = prj.conf
 

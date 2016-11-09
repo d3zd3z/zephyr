@@ -40,30 +40,20 @@ extern unsigned int root_pub_der_len;
 extern void * (*mbedtls_calloc)( size_t n, size_t size );
 extern void (*mbedtls_free)( void *ptr );
 
-/* This is enough for RSA, but there are some frees in the process, so
- * the usage wouldn't need to be this high. */
-static uint8_t buffer[8192];
-static uint8_t *buf = buffer;
-
-/* For testing, a local calloc function. */
 void *boot_calloc(size_t n, size_t size)
 {
-	void *ptr = buf;
-	buf += n * size;
-	// printk("boot_calloc, n=%d, size=%d (left=%d)\n", n, size,
-	//        (buffer + sizeof(buffer) - buf));
-	if (buf > buffer + sizeof(buffer)) {
-		printk("boot_calloc out of space\n");
-		while (1)
-			;
+	size_t total = n * size;
+	void *buf = k_malloc(total);
+	if (!buf) {
+		printk("Failure to allocate %d bytes\n", total);
 	}
-	return ptr;
+	memset(buf, 0, size);
+	return buf;
 }
 
 void boot_free(void *ptr)
 {
-	(void)ptr;
-	// printk("Free: %p\n", ptr);
+	k_free(ptr);
 }
 
 /*
