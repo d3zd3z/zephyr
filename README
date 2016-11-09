@@ -1,0 +1,23 @@
+# Signing images
+
+Generate the signing key
+
+    openssl genrsa -out root.pem 2048
+
+Extract the public key:
+
+    openssl rsa -in root.pem -pubout -out root_pub.der -outform DER -RSAPublicKey_out
+
+Convert to a C file:
+
+    xxd -i root_pub.der root_pub.c
+
+Edit root_pub.c, and make both declarations 'const'.
+
+put root_pub.c into samples/boot/src
+
+# Sign the actual image.
+
+    openssl dgst -sha256 -sign root.pem -out zephyr.sig \
+	samples/shell/outdir/96b_carbon/zephyr.bin
+    cat zephyr.sig >> samples/shell/outdir/96b_carbon/zephyr.bin

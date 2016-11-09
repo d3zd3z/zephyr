@@ -25,6 +25,7 @@
 #include <mbedtls/sha256.h>
 
 #include "image_validate.h"
+#include "image_rsa.h"
 
 /** Indicates that no image is present. */
 #define NO_IMAGE 0
@@ -63,24 +64,6 @@ static uintptr_t find_signature(uintptr_t flash_base)
 	base += (head->data_ram_end - head->data_ram_start);
 	printk("Base: 0x%x\n", base);
 	return base;
-	/*
-	printk("Checking signature: %p, len=0x%x\n",
-	       (void *)flash_base,
-	       base - flash_base);
-	{
-		mbedtls_sha256_context ctx;
-
-		mbedtls_sha256_init(&ctx);
-		mbedtls_sha256_starts(&ctx, 0);
-		mbedtls_sha256_update(&ctx, (const uint8_t *)flash_base,
-				      base - flash_base);
-		mbedtls_sha256_finish(&ctx, hash);
-		mbedtls_sha256_free(&ctx);
-	}
-	printk("Done, sig at %p\n", hash);
-	for (;;)
-		;
-	*/
 }
 
 /**
@@ -113,12 +96,16 @@ bootutil_img_validate(uintptr_t flash_base)
 	uintptr_t sig_base;
 	uint8_t hash[32];
 	int i;
+	int rc;
 
 	sig_base = find_signature(flash_base);
 	if (sig_base == NO_IMAGE)
 		return -1;
 
 	img_hash(flash_base, sig_base, hash);
+	rc = bootutil_verify_sig(hash, 32, (uint8_t *)sig_base, 256, 0);
+	printk("Bootutil verify: %d\n", rc);
+
 	for (i = 0; i < 32; i++)
 		printk(" %x", hash[i]);
 	printk("\n");

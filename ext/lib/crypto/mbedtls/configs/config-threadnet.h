@@ -90,13 +90,17 @@
 #define MBEDTLS_SSL_SRV_C
 #define MBEDTLS_SSL_TLS_C
 
+/* Optionally enable RSA. */
+#define MBEDTLS_RSA_C
+#define MBEDTLS_PKCS1_V15
 
 /* Save RAM at the expense of ROM */
 #define MBEDTLS_AES_ROM_TABLES
 
 /* Save RAM by adjusting to our exact needs */
 #define MBEDTLS_ECP_MAX_BITS             256
-#define MBEDTLS_MPI_MAX_SIZE              32 // 256 bits is 32 bytes
+// #define MBEDTLS_MPI_MAX_SIZE              32 // 256 bits is 32 bytes
+#define MBEDTLS_MPI_MAX_SIZE             256 // 256 bits is 32 bytes
 
 #define MBEDTLS_SSL_MAX_CONTENT_LEN 1024
 
