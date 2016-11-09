@@ -26,6 +26,7 @@
 
 #include "image_validate.h"
 #include "image_rsa.h"
+#include "image_ec.h"
 
 /** Indicates that no image is present. */
 #define NO_IMAGE 0
@@ -103,7 +104,7 @@ bootutil_img_validate(uintptr_t flash_base)
 		return -1;
 
 	img_hash(flash_base, sig_base, hash);
-	rc = bootutil_verify_sig(hash, 32, (uint8_t *)sig_base, 256, 0);
+	rc = bootutil_ec_verify_sig(hash, 32, (uint8_t *)sig_base, 256, 0);
 	printk("Bootutil verify: %d\n", rc);
 
 	for (i = 0; i < 32; i++)

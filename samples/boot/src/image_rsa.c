@@ -46,14 +46,22 @@ void *boot_calloc(size_t n, size_t size)
 	void *buf = k_malloc(total);
 	if (!buf) {
 		printk("Failure to allocate %d bytes\n", total);
+		return 0;
 	}
-	memset(buf, 0, size);
+	// printk("boot_calloc: %d = %p\n", total, buf);
+	memset(buf, 0, total);
 	return buf;
 }
 
 void boot_free(void *ptr)
 {
 	k_free(ptr);
+}
+
+void init_boot_alloc(void)
+{
+	mbedtls_calloc = boot_calloc;
+	mbedtls_free = boot_free;
 }
 
 /*
@@ -65,8 +73,7 @@ bootutil_parse_rsakey(mbedtls_rsa_context *ctx, uint8_t **p, uint8_t *end)
 	int rc;
 	size_t len;
 
-	mbedtls_calloc = boot_calloc;
-	mbedtls_free = boot_free;
+	init_boot_alloc();
 
 	if ((rc = mbedtls_asn1_get_tag(p, end, &len,
 				       (MBEDTLS_ASN1_CONSTRUCTED |

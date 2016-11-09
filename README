@@ -16,8 +16,34 @@ Edit root_pub.c, and make both declarations 'const'.
 
 put root_pub.c into samples/boot/src
 
-# Sign the actual image.
+## Sign the actual image.
 
     openssl dgst -sha256 -sign root.pem -out zephyr.sig \
 	samples/shell/outdir/96b_carbon/zephyr.bin
     cat zephyr.sig >> samples/shell/outdir/96b_carbon/zephyr.bin
+
+# ECC signatures
+
+Generate the signing key
+
+Currently, image_ec.c supports the secp224r1 (NIST 224-bit curve).
+Others can be added as necessary.
+
+    openssl ecparam -name secp224r1 -genkey -out root_ec.pem
+
+(you can view the details with:
+
+    openssl ecparam -noout -in root_ec.pem -text -param_enc explicit
+
+)
+
+Generate the public key for embedding:
+
+    openssl ec -in root_ec.pem -pubout -out root_ec_pub.der -outform DER
+    xxd -i root_ec_pub.der root_ec_pub.c
+
+Edit this file, and make both declarations const, and move the file
+into samples/boot/src
+
+Signing is done the same as above, but using the root_ec.pem file
+instead of the root.pem.
