@@ -5,5 +5,6 @@ r
 # loadfile bin/carbon_boot/apps/boot/boot.elf.bin 0x08000000
 # loadfile bin/carbon_blinky/apps/blinky/blinky.elf.bin 0x08020000
 loadfile samples/boot/outdir/96b_carbon/zephyr.bin 0x08000000
-loadfile samples/shell/outdir/96b_carbon/zephyr.bin 0x08020000
+loadfile samples/shell/outdir/96b_carbon/zephyr.signed.bin 0x08020000
+loadfile samples/2shell/outdir/96b_carbon/zephyr.signed.bin 0x08040000
 q

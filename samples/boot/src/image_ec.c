@@ -28,7 +28,8 @@
 #include <mbedtls/asn1.h>
 #include <string.h>
 
-#include "image_rsa.h"
+#include "image_validate.h"
+#include "image_ec.h"
 
 extern void init_boot_alloc(void);
 
@@ -99,18 +100,14 @@ cmp_sig(mbedtls_ecdsa_context *ctx, uint8_t *hash, uint32_t hlen,
 }
 
 int
-bootutil_ec_verify_sig(uint8_t *hash, uint32_t hlen, uint8_t *sig, int slen,
+bootutil_ec_verify_sig(uint8_t *hash, uint32_t hlen,
+		       struct image_signature *sig,
 		       uint8_t key_id)
 {
 	int rc;
 	uint8_t *cp;
 	uint8_t *end;
 	mbedtls_ecdsa_context ctx;
-
-	// TODO: How to pass this through. It seems to vary a bit.
-	// The code is prepared to zero-pad, and maybe that is the
-	// right thing to do.
-	slen = 62;
 
 	init_boot_alloc();
 
@@ -123,10 +120,8 @@ bootutil_ec_verify_sig(uint8_t *hash, uint32_t hlen, uint8_t *sig, int slen,
 		return -1;
 	}
 
-	while (sig[slen - 1] == '\0') {
-		slen--;
-	}
-	rc = cmp_sig(&ctx, hash, hlen, sig, slen);
+	rc = cmp_sig(&ctx, hash, hlen,
+		     (uint8_t *)(sig + 1), sig->sig_len);
 	mbedtls_ecdsa_free(&ctx);
 
 	return rc;

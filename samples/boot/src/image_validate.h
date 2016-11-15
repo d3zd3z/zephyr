@@ -26,4 +26,27 @@
 
 int bootutil_img_validate(uintptr_t flash_base);
 
+/** Indicates that no image is present. */
+#define NO_IMAGE ((struct image_signature *) -1)
+
+/* This is the format of the signature appended to the image. */
+struct image_signature {
+	uint8_t magic[8];
+	uint8_t version; /* Version of this signature header. */
+	uint8_t algo; /* Algorithm for the signature. */
+	uint8_t hash; /* Hash function used. */
+	uint8_t __pad; /* Some padding. */
+
+	/* TODO: We will need more things here, such as a possible
+	 * certificate chain and other stuff. */
+	uint32_t sig_len;
+};
+
+#define SIG_VERSION 1
+
+#define SIG_ALGO_RSA 1
+#define SIG_ALGO_ECDSA 2
+
+#define SIG_HASH_SHA256 1
+
 #endif /* __BOOT_IMAGE_VALIDATE_H__ */

@@ -43,5 +43,6 @@ static struct shell_cmd commands[] = {
 
 void main(void)
 {
+	printk("First segment shell.  This represents the old code\n");
 	SHELL_REGISTER(MY_SHELL_MODULE, commands);
 }

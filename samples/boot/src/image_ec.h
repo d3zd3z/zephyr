@@ -19,11 +19,14 @@
  * under the License.
  */
 
-#ifndef __BOOT_IMAGE_RSA_H__
-#define __BOOT_IMAGE_RSA_H__
+#ifndef __BOOT_IMAGE_EC_H__
+#define __BOOT_IMAGE_EC_H__
+
+struct image_signature;
 
 int
-bootutil_ec_verify_sig(uint8_t *hash, uint32_t hlen, uint8_t *sig, int slen,
+bootutil_ec_verify_sig(uint8_t *hash, uint32_t hlen,
+		       struct image_signature *sig,
 		       uint8_t key_id);
 
-#endif /* __BOOT_IMAGE_RSA_H__ */
+#endif /* __BOOT_IMAGE_EC_H__ */

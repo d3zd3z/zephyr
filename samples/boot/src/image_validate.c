@@ -23,13 +23,13 @@
 #include <misc/printk.h>
 #include <boot/signature_header.h>
 #include <mbedtls/sha256.h>
+#include <string.h>
 
 #include "image_validate.h"
 #include "image_rsa.h"
 #include "image_ec.h"
 
-/** Indicates that no image is present. */
-#define NO_IMAGE 0
+static const char magic[8] = "zSiGnata";
 
 /**
  * @brief Search for an image signature.
@@ -37,11 +37,14 @@
  * Given a particular flash base address, determine if there is a
  * potentially signed image at that address.  Returns the offset of
  * the signature if there is a valid image at `flash_base`.  If there
- * is no image, returns 0.
+ * is no image, returns NO_IMAGE.  *image_size will be set to the
+ * image size in bytes.
  */
-static uintptr_t find_signature(uintptr_t flash_base)
+static struct image_signature *find_signature(uintptr_t flash_base,
+					      size_t *image_size)
 {
 	struct signature_header *head;
+	struct image_signature *sig;
 	uintptr_t base;
 
 	/**
@@ -61,10 +64,49 @@ static uintptr_t find_signature(uintptr_t flash_base)
 	printk("data_ram_start = 0x%x\n", head->data_ram_start);
 	printk("data_ram_end   = 0x%x\n", head->data_ram_end);
 
-	base = head->data_rom_start;
-	base += (head->data_ram_end - head->data_ram_start);
+	/*
+	 * Note that the image might not be positioned at its ultimate
+	 * destination, so we should based our position merely on
+	 * lengths added to the passed base.
+	 */
+	/*
+	 * TODO: Validate that these sizes keep everything in the
+	 * section.
+	 */
+	base = flash_base;
+	base += head->rom_end - head->rom_start;
+	base += head->data_ram_end - head->data_ram_start;
+
+	*image_size = base - flash_base;
+
+	/* Pad the base to the next 16-byte boundary. */
+	base = (base + 15) & ~15;
+
+	/* Determine if we have a signature at this address. */
 	printk("Base: 0x%x\n", base);
-	return base;
+
+	sig = (struct image_signature *)base;
+	if (memcmp(sig, magic, 8)) {
+		printk("No image magic found\n");
+		return NO_IMAGE;
+	}
+
+	if (sig->version != SIG_VERSION) {
+		printk("Signature version mismatch\n");
+		return NO_IMAGE;
+	}
+
+	if (sig->algo != SIG_ALGO_ECDSA) {
+		printk("Unsupported signing algorithm\n");
+		return NO_IMAGE;
+	}
+
+	if (sig->hash != SIG_HASH_SHA256) {
+		printk("Unsupported signing hash function\n");
+		return NO_IMAGE;
+	}
+
+	return sig;
 }
 
 /**
@@ -77,7 +119,7 @@ static uintptr_t find_signature(uintptr_t flash_base)
  * The image is assumed to occupy the space between the flash_base and
  * the sig_base.
  */
-static void img_hash(uintptr_t flash_base, uintptr_t sig_base,
+static void img_hash(uintptr_t flash_base, size_t image_size,
 		     uint8_t *hash_out)
 {
 	mbedtls_sha256_context ctx;
@@ -86,7 +128,7 @@ static void img_hash(uintptr_t flash_base, uintptr_t sig_base,
 	mbedtls_sha256_starts(&ctx, 0);
 
 	mbedtls_sha256_update(&ctx, (const uint8_t *)flash_base,
-			      sig_base - flash_base);
+			      image_size);
 	mbedtls_sha256_finish(&ctx, hash_out);
 	mbedtls_sha256_free(&ctx);
 }
@@ -94,22 +136,27 @@ static void img_hash(uintptr_t flash_base, uintptr_t sig_base,
 int
 bootutil_img_validate(uintptr_t flash_base)
 {
-	uintptr_t sig_base;
+	struct image_signature *sig_base;
+	size_t image_size;
 	uint8_t hash[32];
 	int i;
 	int rc;
 
-	sig_base = find_signature(flash_base);
+	sig_base = find_signature(flash_base, &image_size);
 	if (sig_base == NO_IMAGE)
 		return -1;
 
-	img_hash(flash_base, sig_base, hash);
-	rc = bootutil_ec_verify_sig(hash, 32, (uint8_t *)sig_base, 256, 0);
+	img_hash(flash_base, image_size, hash);
+	rc = bootutil_ec_verify_sig(hash, 32, sig_base, 0);
 	printk("Bootutil verify: %d\n", rc);
 
 	for (i = 0; i < 32; i++)
 		printk(" %x", hash[i]);
 	printk("\n");
+
+	if (rc != 0) {
+		return -1;
+	}
 
 	return 0;
 }
