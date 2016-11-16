@@ -62,3 +62,55 @@ The boot algorithm is fairly simple:
   recovery image is present, and signed correctly, it will be run.
 
 - If there are no images to run, we just crash.
+
+Segment swapping
+''''''''''''''''
+
+The *hard* part of updating flash is robustly swapping the code in the
+primary and the update partition.  The first thing we need to be able
+to do is keep track of which block of code is the new code.  To track
+this, we will make use of the last 16 bytes of each segment for a
+bootloader specific piece of data.
+
+The process works something like this:
+
+- External (to the bootloader) FOTA code places a new image in the
+  update segment.
+
+- The bootloader will copy the primary code (the old image) into the
+  scratch area.  It will mark this copy with an indicator that it is a
+  scratch copy of the old data.
+
+- It will then erase the primary area.
+
+- It will then copy the update area to the primary area, and indicate
+  what this area is in the boot state.
+
+- It will then erase the update area.
+
+At this point, the primary area contains the new image, the update
+region is erased, and the scratch area contains the old image.  It is
+now safe to boot the new image.
+
+Through a mechanism, this new image can indicate to the bootloader
+that it has successfully booted, and the bootloader can then erase the
+scratch area.
+
+If however, it detects that the new image does not boot successfully,
+it can erase the primary area, and copy the old image back to it to
+restore boot.
+
+Small sectors
+'''''''''''''
+
+Some flash devices have sectors that are much smaller than the code
+size (say 4 or 8k).  With these devices, we have a lot more
+flexibility as to the sizes of the segments.  It is also possible to
+make the scratch area much smaller, using 2 erase sectors will be
+sufficient to be able to swap the two code segments.
+
+The primary different here is that we actually swap the two code
+segments, rather than leave the old code in the scratch area.  There
+is also a lot more state to keep track of, since we need to be able to
+interrupt the operation at any time, and figure out where we were, and
+resume.

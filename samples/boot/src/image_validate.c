@@ -54,15 +54,15 @@ static struct image_signature *find_signature(uintptr_t flash_base,
 	 */
 	head = (struct signature_header *)
 		(flash_base + SIGNATURE_HEADER_OFFSET);
-	printk("Head: %p\n", head);
+	// printk("Head: %p\n", head);
 	if (head->magic1 != SIGNATURE_HEADER_MAGIC1 ||
 	    head->magic2 != SIGNATURE_HEADER_MAGIC2)
 		return NO_IMAGE;
-	printk("rom_start      = 0x%x\n", head->rom_start);
-	printk("rom_end        = 0x%x\n", head->rom_end);
-	printk("data_rom_start = 0x%x\n", head->data_rom_start);
-	printk("data_ram_start = 0x%x\n", head->data_ram_start);
-	printk("data_ram_end   = 0x%x\n", head->data_ram_end);
+	// printk("rom_start      = 0x%x\n", head->rom_start);
+	// printk("rom_end        = 0x%x\n", head->rom_end);
+	// printk("data_rom_start = 0x%x\n", head->data_rom_start);
+	// printk("data_ram_start = 0x%x\n", head->data_ram_start);
+	// printk("data_ram_end   = 0x%x\n", head->data_ram_end);
 
 	/*
 	 * Note that the image might not be positioned at its ultimate
@@ -83,7 +83,7 @@ static struct image_signature *find_signature(uintptr_t flash_base,
 	base = (base + 15) & ~15;
 
 	/* Determine if we have a signature at this address. */
-	printk("Base: 0x%x\n", base);
+	// printk("Base: 0x%x\n", base);
 
 	sig = (struct image_signature *)base;
 	if (memcmp(sig, magic, 8)) {
@@ -139,7 +139,6 @@ bootutil_img_validate(uintptr_t flash_base)
 	struct image_signature *sig_base;
 	size_t image_size;
 	uint8_t hash[32];
-	int i;
 	int rc;
 
 	sig_base = find_signature(flash_base, &image_size);
@@ -148,11 +147,6 @@ bootutil_img_validate(uintptr_t flash_base)
 
 	img_hash(flash_base, image_size, hash);
 	rc = bootutil_ec_verify_sig(hash, 32, sig_base, 0);
-	printk("Bootutil verify: %d\n", rc);
-
-	for (i = 0; i < 32; i++)
-		printk(" %x", hash[i]);
-	printk("\n");
 
 	if (rc != 0) {
 		return -1;
