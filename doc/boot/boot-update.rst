@@ -11,7 +11,7 @@ flash memory into some segments.  These segments will need to be
 separately erasable and programmable (so that erasing one segment does
 not affect the code in other segments).
 
-.. list-table: Flash Segments
+.. list-table:: Flash Segments
    :header-rows: 1
 
    * - Name
