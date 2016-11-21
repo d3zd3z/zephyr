@@ -60,7 +60,6 @@
 /* mbed TLS feature support */
 #define MBEDTLS_AES_ROM_TABLES
 #define MBEDTLS_ECP_DP_SECP256R1_ENABLED
-#define MBEDTLS_ECP_DP_SECP224R1_ENABLED
 #define MBEDTLS_ECP_NIST_OPTIM
 #define MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED
 #define MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
@@ -91,13 +90,6 @@
 #define MBEDTLS_SSL_SRV_C
 #define MBEDTLS_SSL_TLS_C
 
-/* Optionally enable RSA. */
-#define MBEDTLS_RSA_C
-#define MBEDTLS_PKCS1_V15
-
-/* Enable ECDSA. ECDH seems to have to be compiled for this to build. */
-#define MBEDTLS_ECDSA_C
-#define MBEDTLS_ECDH_C
 
 /* Save RAM at the expense of ROM */
 #define MBEDTLS_AES_ROM_TABLES
@@ -105,7 +97,6 @@
 /* Save RAM by adjusting to our exact needs */
 #define MBEDTLS_ECP_MAX_BITS             256
 #define MBEDTLS_MPI_MAX_SIZE              32 // 256 bits is 32 bytes
-// #define MBEDTLS_MPI_MAX_SIZE             256 // 256 bits is 32 bytes
 
 #define MBEDTLS_SSL_MAX_CONTENT_LEN 1024
 
