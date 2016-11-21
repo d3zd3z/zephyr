@@ -1,0 +1,13 @@
+# Configure the bootloader
+
+choice
+prompt "Bootloader signature type"
+default BOOT_RSA_SIGNATURE
+
+config BOOT_RSA_SIGNATURE
+	bool "Sign image with RSA"
+
+config BOOT_ECDSA_SIGNATURE
+	bool "sign image with ECDSA"
+
+endchoice
