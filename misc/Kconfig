@@ -406,3 +406,5 @@ config REBOOT
 	needed to perform a "safe" reboot (e.g. SYSTEM_CLOCK_DISABLE, to stop the
 	system clock before issuing a reset).
 endmenu
+
+source "misc/boot/Kconfig"

@@ -41,6 +41,15 @@ void main(void)
 
 	printk("This is where we would then boot\n");
 
+	/*
+	 * Determine if there is a bootable image.
+	 */
+	if (bootutil_img_validate(BOOT_FLASH_BASE + FLASH_PRIMARY_BASE)) {
+		printk("No bootable image\n");
+		while (1)
+			;
+	}
+
 #if 0
 	find_bootable(flash_dev);
 
