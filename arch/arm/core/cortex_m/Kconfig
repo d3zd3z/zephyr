@@ -100,6 +100,14 @@ config CPU_CORTEX_M7
 	help
 	This option signifies the use of a Cortex-M7 CPU
 
+config CHAIN_BOOT
+	bool "Allow chain booting of another image"
+	default n
+	help
+	  Add support for chain booting.  This allows the bootloader
+	  to begin executing another image as if that image had booted
+	  from reset.
+
 menu "ARM Cortex-M options"
 	depends on CPU_CORTEX_M
 
