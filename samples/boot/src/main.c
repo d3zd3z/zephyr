@@ -21,13 +21,13 @@
 #include <asm_inline.h>
 
 #include <boot_config.h>
+#include <boot/update.h>
+#include <boot/chain_boot.h>
 
 void main(void)
 {
-	typedef void jump_fn(void);
-	struct vector_table *vt;
-	jump_fn *fn;
 	struct device *flash_dev;
+	void *base;
 
 	printk("------------------------------------------------------------\n");
 	printk("Bootloader on %s\n", CONFIG_ARCH);
@@ -39,45 +39,10 @@ void main(void)
 			;
 	}
 
-	printk("This is where we would then boot\n");
-
 	/*
 	 * Determine if there is a bootable image.
 	 */
-	if (bootutil_img_validate(BOOT_FLASH_BASE + FLASH_PRIMARY_BASE)) {
-		printk("No bootable image\n");
-		while (1)
-			;
-	}
-
-#if 0
-	find_bootable(flash_dev);
-
-	// tflash();
-
-	/* Let's print out the beginning of each sector. */
-#if 0
-	{
-		int i;
-		for (i = 0; i < ARRAY_SIZE(sectors); i++) {
-			printk("Flash sector 0x%x\n", sectors[i].start);
-			pdump((void *)sectors[i].start, 64);
-		}
-	}
-#endif
-
-	if (bootutil_img_validate(0x08020000)) {
-		printk("Image doesn't validate\n");
-		while (1)
-			;
-	}
-
-	vt = (struct vector_table *)0x08020000;
-	printk("Initial MSP: %p\n", (void *)vt->msp);
-	printk("      Reset: %p\n", (void *)vt->reset);
-
-	_MspSet(vt->msp);
-	fn = (jump_fn *)vt->reset;
-	fn();
-#endif
+	base = boot_find_image(flash_dev);
+	printk("Boot: %p\n", base);
+	chain_boot(base);
 }
