@@ -8,13 +8,22 @@ import struct
 # openssl dgst -sha256 -sign root_ec.pem -out zephyr.sig samples/shell/outdir/96b_carbon/zephyr.bin
 # cat zephyr.sig  >> samples/shell/outdir/96b_carbon/zephyr.bin
 
+if True:
+    # ECDSA signature
+    sig_type = 2
+    sig_file = "root_ec.pem"
+else:
+    # RSA signature
+    sig_type = 1
+    sig_file = "root.pem"
+
 def get_signature(path):
     """
     Using openssl (and currently some hardcoded paths), return the
     signature of the given file.
     """
     return check_output(["openssl", "dgst", "-sha256",
-        "-sign", "root_ec.pem", path])
+        "-sign", sig_file, path])
 
 def make_padding(count, padding):
     """
@@ -40,7 +49,7 @@ def sign_file(binary):
         fd.write(payload)
         # print "padding: ", len(make_padding(len(payload), 16))
         fd.write(make_padding(len(payload), 16))
-        fd.write(struct.pack('<8sBBBxI', 'zSiGnata', 1, 2, 1, len(sig)))
+        fd.write(struct.pack('<8sBBBxI', 'zSiGnata', 1, sig_type, 1, len(sig)))
         fd.write(sig)
 
 if __name__ == '__main__':

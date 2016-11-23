@@ -53,26 +53,36 @@
 #endif
 
 /* mbed TLS feature support */
+#ifdef CONFIG_BOOT_VERIFY_ECDSA_SIGNATURE
 #define MBEDTLS_ECP_DP_SECP256R1_ENABLED
 #define MBEDTLS_ECP_DP_SECP224R1_ENABLED
 #define MBEDTLS_ECP_NIST_OPTIM
-#define MBEDTLS_RSA_C
-#define MBEDTLS_PKCS1_V15
 #define MBEDTLS_ECDSA_C
 #define MBEDTLS_ECDH_C
+#define MBEDTLS_ECP_C
+#endif
+
+#ifdef CONFIG_BOOT_VERIFY_RSA_SIGNATURE
+#define MBEDTLS_RSA_C
+#define MBEDTLS_PKCS1_V15
+#endif
 
 /* mbed TLS modules */
 #define MBEDTLS_ASN1_PARSE_C
 #define MBEDTLS_ASN1_WRITE_C
 #define MBEDTLS_BIGNUM_C
-#define MBEDTLS_ECP_C
 #define MBEDTLS_MD_C
 #define MBEDTLS_OID_C
 #define MBEDTLS_SHA256_C
 
 /* Save RAM by adjusting to our exact needs */
+#ifdef CONFIG_BOOT_VERIFY_RSA_SIGNATURE
+#define MBEDTLS_ECP_MAX_BITS             2048
+#define MBEDTLS_MPI_MAX_SIZE              256
+#else
 #define MBEDTLS_ECP_MAX_BITS             256
 #define MBEDTLS_MPI_MAX_SIZE              32 // 256 bits is 32 bytes
+#endif
 
 #define MBEDTLS_SSL_MAX_CONTENT_LEN 1024
 
