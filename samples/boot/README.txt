@@ -8,4 +8,4 @@ A chaining bootloader
 
 Building and Running Project:
 
-TODO
+see doc/boot/boot.rst
