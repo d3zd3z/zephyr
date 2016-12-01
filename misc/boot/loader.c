@@ -28,20 +28,6 @@
 #include <boot/loader.h>
 #include "bootutil_priv.h"
 
-#if 0
-#include <assert.h>
-#include <stddef.h>
-#include <inttypes.h>
-#include <string.h>
-#include <hal/flash_map.h>
-#include <hal/hal_flash.h>
-#include <os/os_malloc.h>
-#include "bootutil/loader.h"
-#include "bootutil/image.h"
-#include "bootutil/bootutil_misc.h"
-#include "bootutil_priv.h"
-#endif
-
 /** Number of image slots in flash; currently limited to two. */
 #define BOOT_NUM_SLOTS              2
 
@@ -62,14 +48,6 @@ static struct boot_status boot_state;
 
 static int boot_erase_area(int area_idx, uint32_t sz);
 static uint32_t boot_copy_sz(int max_idx, int *cnt);
-
-#if 0
-void
-boot_req_set(struct boot_req *req)
-{
-    boot_req = req;
-}
-#endif
 
 /**
  * Calculates the flash offset of the specified image slot.

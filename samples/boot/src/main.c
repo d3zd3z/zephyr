@@ -30,11 +30,6 @@
  */
 static const struct flash_area flash_areas[] = {
 	{
-		.fa_flash_id = FLASH_AREA_BOOTLOADER,
-		.fa_off = 0,
-		.fa_size = 128*1024,
-	},
-	{
 		.fa_flash_id = FLASH_AREA_IMAGE_0,
 		.fa_off = 128*1024,
 		.fa_size = 128*1024,
@@ -54,7 +49,7 @@ static const struct flash_area flash_areas[] = {
 	},
 };
 
-static const uint8_t slot_areas[] = { 1, 2, 3 };
+static const uint8_t slot_areas[] = { 0, 1 };
 static const struct boot_req carbon_req = {
 	.br_area_descs = flash_areas,
 	.br_slot_areas = slot_areas,
