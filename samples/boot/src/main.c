@@ -58,6 +58,7 @@ static const uint8_t slot_areas[] = { 1, 2, 3 };
 static const struct boot_req carbon_req = {
 	.br_area_descs = flash_areas,
 	.br_slot_areas = slot_areas,
+	.br_num_image_areas = 3,
 	.br_scratch_area_idx = 2,
 	.br_img_sz = 128*1024,
 };

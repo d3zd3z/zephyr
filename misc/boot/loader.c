@@ -244,13 +244,11 @@ boot_select_image_slot(void)
 	return 0;
 }
 
-#if 0
 static int
 boot_status_sz(void)
 {
-    return sizeof(struct boot_img_trailer) + 32 * sizeof(uint32_t);
+	return sizeof(struct boot_img_trailer) + 32 * sizeof(uint32_t);
 }
-#endif
 
 /*
  * How many sectors starting from sector[idx] can fit inside scratch.
@@ -305,7 +303,6 @@ boot_erase_area(int area_idx, uint32_t sz)
 	return 0;
 }
 
-#if 0
 /**
  * Copies the contents of one area to another.  The destination area must
  * be erased prior to this function being called.
@@ -319,47 +316,48 @@ boot_erase_area(int area_idx, uint32_t sz)
 static int
 boot_copy_area(int from_area_idx, int to_area_idx, uint32_t sz)
 {
-    const struct flash_area *from_area_desc;
-    const struct flash_area *to_area_desc;
-    uint32_t from_addr;
-    uint32_t to_addr;
-    uint32_t off;
-    int chunk_sz;
-    int rc;
+	const struct flash_area *from_area_desc;
+	const struct flash_area *to_area_desc;
+	uint32_t from_addr;
+	uint32_t to_addr;
+	uint32_t off;
+	int chunk_sz;
+	int rc;
 
-    static uint8_t buf[1024];
+	static uint8_t buf[1024];
 
-    from_area_desc = boot_req->br_area_descs + from_area_idx;
-    to_area_desc = boot_req->br_area_descs + to_area_idx;
+	from_area_desc = boot_req->br_area_descs + from_area_idx;
+	to_area_desc = boot_req->br_area_descs + to_area_idx;
 
-    assert(to_area_desc->fa_size >= from_area_desc->fa_size);
+	__ASSERT(to_area_desc->fa_size >= from_area_desc->fa_size,
+		 "Update area larger than primary");
 
-    off = 0;
-    while (off < sz) {
-        if (sz - off > sizeof buf) {
-            chunk_sz = sizeof buf;
-        } else {
-            chunk_sz = sz - off;
-        }
+	off = 0;
+	while (off < sz) {
+		if (sz - off > sizeof buf) {
+			chunk_sz = sizeof buf;
+		} else {
+			chunk_sz = sz - off;
+		}
 
-        from_addr = from_area_desc->fa_off + off;
-        rc = hal_flash_read(from_area_desc->fa_flash_id, from_addr, buf,
-                            chunk_sz);
-        if (rc != 0) {
-            return rc;
-        }
+		from_addr = from_area_desc->fa_off + off;
+		rc = hal_flash_read(from_area_desc->fa_flash_id, from_addr, buf,
+				    chunk_sz);
+		if (rc != 0) {
+			return rc;
+		}
 
-        to_addr = to_area_desc->fa_off + off;
-        rc = hal_flash_write(to_area_desc->fa_flash_id, to_addr, buf,
-                             chunk_sz);
-        if (rc != 0) {
-            return rc;
-        }
+		to_addr = to_area_desc->fa_off + off;
+		rc = hal_flash_write(to_area_desc->fa_flash_id, to_addr, buf,
+				     chunk_sz);
+		if (rc != 0) {
+			return rc;
+		}
 
-        off += chunk_sz;
-    }
+		off += chunk_sz;
+	}
 
-    return 0;
+	return 0;
 }
 
 /**
@@ -377,63 +375,64 @@ boot_copy_area(int from_area_idx, int to_area_idx, uint32_t sz)
 static int
 boot_swap_areas(int idx, uint32_t sz, int end_area)
 {
-    int area_idx_1;
-    int area_idx_2;
-    int rc;
+	int area_idx_1;
+	int area_idx_2;
+	int rc;
 
-    area_idx_1 = boot_req->br_slot_areas[0] + idx;
-    area_idx_2 = boot_req->br_slot_areas[1] + idx;
-    assert(area_idx_1 != area_idx_2);
-    assert(area_idx_1 != boot_req->br_scratch_area_idx);
-    assert(area_idx_2 != boot_req->br_scratch_area_idx);
+	area_idx_1 = boot_req->br_slot_areas[0] + idx;
+	area_idx_2 = boot_req->br_slot_areas[1] + idx;
+	__ASSERT(area_idx_1 != area_idx_2, "Overlapping update");
+	__ASSERT(area_idx_1 != boot_req->br_scratch_area_idx,
+		 "Area one same as scratch");
+	__ASSERT(area_idx_2 != boot_req->br_scratch_area_idx,
+		 "Area two same as scratch");
 
-    if (boot_state.state == 0) {
-        rc = boot_erase_area(boot_req->br_scratch_area_idx, sz);
-        if (rc != 0) {
-            return rc;
-        }
+	if (boot_state.state == 0) {
+		rc = boot_erase_area(boot_req->br_scratch_area_idx, sz);
+		if (rc != 0) {
+			return rc;
+		}
 
-        rc = boot_copy_area(area_idx_2, boot_req->br_scratch_area_idx, sz);
-        if (rc != 0) {
-            return rc;
-        }
+		rc = boot_copy_area(area_idx_2, boot_req->br_scratch_area_idx, sz);
+		if (rc != 0) {
+			return rc;
+		}
 
-        boot_state.state = 1;
-        (void)boot_write_status(&boot_state);
-    }
-    if (boot_state.state == 1) {
-        rc = boot_erase_area(area_idx_2, sz);
-        if (rc != 0) {
-            return rc;
-        }
+		boot_state.state = 1;
+		(void)boot_write_status(&boot_state);
+	}
+	if (boot_state.state == 1) {
+		rc = boot_erase_area(area_idx_2, sz);
+		if (rc != 0) {
+			return rc;
+		}
 
-        rc = boot_copy_area(area_idx_1, area_idx_2,
-          end_area ? (sz - boot_status_sz()) : sz);
-        if (rc != 0) {
-            return rc;
-        }
+		rc = boot_copy_area(area_idx_1, area_idx_2,
+				    end_area ? (sz - boot_status_sz()) : sz);
+		if (rc != 0) {
+			return rc;
+		}
 
-        boot_state.state = 2;
-        (void)boot_write_status(&boot_state);
-    }
-    if (boot_state.state == 2) {
-        rc = boot_erase_area(area_idx_1, sz);
-        if (rc != 0) {
-            return rc;
-        }
+		boot_state.state = 2;
+		(void)boot_write_status(&boot_state);
+	}
+	if (boot_state.state == 2) {
+		rc = boot_erase_area(area_idx_1, sz);
+		if (rc != 0) {
+			return rc;
+		}
 
-        rc = boot_copy_area(boot_req->br_scratch_area_idx, area_idx_1, sz);
-        if (rc != 0) {
-            return rc;
-        }
+		rc = boot_copy_area(boot_req->br_scratch_area_idx, area_idx_1, sz);
+		if (rc != 0) {
+			return rc;
+		}
 
-        boot_state.idx++;
-        boot_state.state = 0;
-        (void)boot_write_status(&boot_state);
-    }
-    return 0;
+		boot_state.idx++;
+		boot_state.state = 0;
+		(void)boot_write_status(&boot_state);
+	}
+	return 0;
 }
-#endif
 
 /**
  * Swaps the two images in flash.  If a prior copy operation was interrupted
@@ -444,7 +443,6 @@ boot_swap_areas(int idx, uint32_t sz, int end_area)
 static int
 boot_copy_image(void)
 {
-#if 0
 	uint32_t sz;
 	int i;
 	int end_area = 1;
@@ -461,10 +459,6 @@ boot_copy_image(void)
 	}
 	boot_clear_status();
 
-#endif
-	printk("boot_copy_image: stopping\n");
-	while (1)
-		;
 	return 0;
 }
 

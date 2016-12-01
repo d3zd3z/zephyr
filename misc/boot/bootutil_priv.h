@@ -66,12 +66,10 @@ int bootutil_verify_sig(uint8_t *hash, uint32_t hlen, uint8_t *sig, int slen,
 
 int boot_read_image_header(struct boot_image_location *loc,
   struct image_header *out_hdr);
+#endif
 int boot_write_status(struct boot_status *bs);
-#endif
 int boot_read_status(struct boot_status *bs);
-#if 0
 void boot_clear_status(void);
-#endif
 
 void boot_magic_loc(int slot_num, uint8_t *flash_id, uint32_t *off);
 void boot_scratch_loc(uint8_t *flash_id, uint32_t *off);
@@ -111,6 +109,18 @@ static inline int hal_flash_erase(uint8_t flash_id, uint32_t address,
 {
 	printk("hal flash erase: 0x%x (%d)\n", address, num_bytes);
 	return flash_erase(boot_flash, address, num_bytes);
+}
+
+/**
+ * Wrapper for mynewt flash API for write
+ */
+static inline int hal_flash_write(uint8_t flash_id, uint32_t address,
+				  const void *src,
+				  uint32_t num_bytes)
+{
+	/* TODO: This should disable write protect. */
+	printk("hal flash write: 0x%x (%d)\n", address, num_bytes);
+	return flash_write(boot_flash, address, src, num_bytes);
 }
 
 #endif

@@ -268,7 +268,6 @@ boot_read_status(struct boot_status *bs)
 	return 0;
 }
 
-#if 0
 /**
  * Writes the supplied boot status to the flash file system.  The boot status
  * contains the current state of an in-progress image copy operation.
@@ -280,27 +279,27 @@ boot_read_status(struct boot_status *bs)
 int
 boot_write_status(struct boot_status *bs)
 {
-    uint32_t off;
-    uint8_t flash_id;
-    uint8_t val;
+	uint32_t off;
+	uint8_t flash_id;
+	uint8_t val;
 
-    if (bs->idx == 0) {
-        /*
-         * Write to scratch
-         */
-        boot_scratch_loc(&flash_id, &off);
-    } else {
-        /*
-         * Write to slot 0;
-         */
-        boot_magic_loc(0, &flash_id, &off);
-    }
-    off -= ((3 * bs->elem_sz) * bs->idx + bs->elem_sz * (bs->state + 1));
+	if (bs->idx == 0) {
+		/*
+		 * Write to scratch
+		 */
+		boot_scratch_loc(&flash_id, &off);
+	} else {
+		/*
+		 * Write to slot 0;
+		 */
+		boot_magic_loc(0, &flash_id, &off);
+	}
+	off -= ((3 * bs->elem_sz) * bs->idx + bs->elem_sz * (bs->state + 1));
 
-    val = bs->state;
-    hal_flash_write(flash_id, off, &val, sizeof(val));
+	val = bs->state;
+	hal_flash_write(flash_id, off, &val, sizeof(val));
 
-    return 0;
+	return 0;
 }
 
 /**
@@ -312,16 +311,15 @@ boot_write_status(struct boot_status *bs)
 void
 boot_clear_status(void)
 {
-    uint32_t off;
-    uint8_t val = 0;
-    uint8_t flash_id;
+	uint32_t off;
+	uint8_t val = 0;
+	uint8_t flash_id;
 
-    /*
-     * Write to slot 0; boot_img_trailer is the 8 bytes within image slot.
-     * Here we say that copy operation was finished.
-     */
-    boot_magic_loc(0, &flash_id, &off);
-    off += sizeof(uint32_t);
-    hal_flash_write(flash_id, off, &val, sizeof(val));
+	/*
+	 * Write to slot 0; boot_img_trailer is the 8 bytes within image slot.
+	 * Here we say that copy operation was finished.
+	 */
+	boot_magic_loc(0, &flash_id, &off);
+	off += sizeof(uint32_t);
+	hal_flash_write(flash_id, off, &val, sizeof(val));
 }
-#endif
