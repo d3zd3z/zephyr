@@ -82,6 +82,14 @@ SECTIONS
 
     SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
 	{
+#ifdef CONFIG_BOOT_HEADER
+	/*
+	 * On Cortex-M, the boot vector must be aligned to 128-bytes.
+	 * Move up by one to allow for the boot image to be prepended
+	 * to the image.
+	 */
+	. = 0x80;
+#endif
 	KEEP(*(.exc_vector_table))
 	KEEP(*(".exc_vector_table.*"))
 
