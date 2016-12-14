@@ -17,6 +17,7 @@
 #include <zephyr.h>
 #include <misc/printk.h>
 #include <misc/shell.h>
+#include <flash.h>
 
 static int shell_cmd_ping(int argc, char *argv[])
 {
@@ -32,11 +33,31 @@ static int shell_cmd_params(int argc, char *argv[])
 	return 0;
 }
 
+static int shell_cmd_ok(int argc, char *argv[])
+{
+	struct device *flash;
+	int rc;
+	uint8_t marker = 0;
+
+	flash = device_get_binding("STM32F4_FLASH");
+	if (!flash) {
+		printk("Flash device not found\n");
+		return -1;
+	}
+
+	rc = flash_write(flash, 0x40000 - 1, &marker, 1);
+	if (rc == 0) {
+		printk("Shell image marked ok\n");
+	}
+	return rc;
+}
+
 #define MY_SHELL_MODULE "sample_module"
 
 static struct shell_cmd commands[] = {
 	{ "ping", shell_cmd_ping },
 	{ "params", shell_cmd_params, "print argc" },
+	{ "ok", shell_cmd_ok, "mark image ok" },
 	{ NULL, NULL }
 };
 
