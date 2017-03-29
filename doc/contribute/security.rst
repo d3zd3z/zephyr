@@ -6,12 +6,12 @@ Secure Coding Guidelines
 Traditionally, microcontroller-based systems have not placed much
 emphasis on security.
 They have usually been thought of as isolated, disconnected
-from the world, and not very vulnerabile, just because of the
+from the world, and not very vulnerable, just because of the
 difficulty in accessing them.  The Internet of Things has changed
 this.  Now, code running on small microcontrollers often has access to
 the internet, or at least to other devices (that may themselves have
 vulnerabilities).  Given the volume they are often deployed at,
-uncontrolled access can be devasating [#]_.
+uncontrolled access can be devastating [#]_.
 
 .. [#]  A recent attack_ resulting in a significant portion of DNS
    infrastructure being taken down.
@@ -34,15 +34,19 @@ This document covers guidelines for the `Zephyr Project`_, from a
 security perspective.  Much of the ideas contained herein are captured
 from other open source efforts.
 
+.. todo: Reference master document here
+
 .. _Zephyr Project: https://www.zephyrproject.org/
 
-It will begin with a section on `Secure development knowledge`, which
+It will begin with an overview of secure design as it relates to
+Zephyr.  This will be followed by
+a section on `Secure development knowledge`, which
 gives basic requirements that a developer working on the project will
 need to have.  This section gives references to other security
 documents, and full details of how to write secure software are beyond
 the scope of this document.  This section also describes a
 vulnerability knowledge that at least one of the primary developers
-should have.  This knowlege will be necessary for the review process
+should have.  This knowledge will be necessary for the review process
 described below this.
 
 Following this will be a description of the review process used to
@@ -52,6 +56,85 @@ project.
 
 Finally, the document covers how changes are to be made to this
 document.
+
+Secure Coding Guidelines
+========================
+
+Designing an open software system such as Zephyr to be secure requires
+adhering to a defined set of design standards. In [2], the following,
+widely accepted principles for protection mechanisms are defined to
+prevent security violations and limit their impact:
+
+- **Open design** as a design guideline incorporates the maxim that
+  protection mechanisms cannot be kept secret on any system in
+  wide-spread use. Instead of relying on secret, custom-tailored
+  security measures, publicly accepted cryptographic algorithms and
+  well established cryptographic libraries shall be used.
+
+- **Economy of mechanism** specifies that the underlying design of a
+  system shall be kept as simple and small as possible. In the context
+  of the Zephyr project, this can be realized, e.g., by modular code
+  [3] and abstracted APIs.
+
+- **Complete mediation** requires that each access to every object and
+  process needs to be authenticated first. Mechanisms to store access
+  conditions shall be avoided if possible.
+
+- **Fail-safe defaults** defines that access is restricted by default
+  and permitted only in specific conditions defined by the system
+  protection scheme, e.g., after successful authentication.
+  Furthermore, default settings for services shall be chosen in a way
+  to provide maximum security.  This corresponds to the “Secure by
+  Default” paradigm [4].
+
+- **Separation of privilege** is the principle that two conditions or
+  more need to be satisfied before access is granted. In the context
+  of the Zephyr project, this could encompass split keys [3].
+
+- **Least privilege** describes an access model in which each user,
+  program, thread, and fiber shall have the smallest possible subset
+  of permissions in the system required to perform their task. This
+  positive security model aims to minimize the attack surface of the
+  system.
+
+- **Least common mechanism** specifies that mechanisms common to more
+  than one user or process shall not be shared if not strictly
+  required. The example given in [2] is a function that should be
+  implemented as a shared library executed by each user and not as a
+  supervisor procedure shared by all users.
+
+- **Psychological acceptability** requires that security features are
+  easy to use by the developers in order to ensure its usage and the
+  correctness of its application.
+
+In addition to these general principles, the following points are
+specific to the development of a secure RTOS:
+
+- **Complementary Security/Defense in Depth**: do not rely on a single
+  threat mitigation approach. In case of the complementary security
+  approach, parts of the threat mitigation are performed by the
+  underlying platform. In case such mechanisms are not provided by the
+  platform, or are not trusted, a defense in depth [4] paradigm shall
+  be used.
+
+- **Less commonly used services off by default**: to reduce the
+  exposure of the system to potential attacks, features or services
+  shall not be enabled by default if they are only rarely used (a
+  threshold of 80% is given in [4]). For the Zephyr project, this can
+  be realized using the configuration management. Each functionality
+  and module shall be represented as a configuration option and needs
+  to be explicitly enabled. Then, all features, protocols, and drivers
+  not required for a particular use case can be disabled. The user
+  shall be notified if low-level options and APIs are enabled but not
+  used by the application.
+
+- **Change management**: to guarantee a traceability of changes to the
+  system, each change shall follow a specified process including a
+  change request, impact analysis, ratification, implementation, and
+  validation phase. In each stage, appropriate documentation shall be
+  provided. All commits shall be related to a bug report or change
+  request in the issue tracker. Commits without a valid reference
+  shall be denied.
 
 Secure development knowledge
 ============================
@@ -75,6 +158,10 @@ including the 8 principles from `Saltzer and Schroeder`_:
 
 - complete mediation (every access that might be limited must be
   checked for authority and be non-bypassable)
+
+.. todo: Explain better the constraints of embedded devices, and that
+   we typically do edge detection, not at each function. Perhaps
+   relate this to input validation below.
 
 - open design (security mechanisms should not depend on attacker
   ignorance of its design, but instead on more easily protected and
@@ -130,18 +217,23 @@ injection, OS injection, classic buffer overflow, cross-site
 scripting, missing authentication, and missing authorization. See the
 `CWE/SANS top 25`_ or `OWASP Top 10`_ for commonly used lists.
 
+.. Turn this into something specific. Can we find examples of
+   mistakes.  Perhaps an example of things Coverity has sent us.
+
 .. _CWE/SANS top 25: http://cwe.mitre.org/top25/
 
 .. _OWASP Top 10: https://www.owasp.org/index.php/Category:OWASP_Top_Ten_Project
 
-Core Security Team
-------------------
+Security Subcommittee
+---------------------
 
-There shall be a “Core Security Team”, that is responsible for
+.. Should read "security subcommittee" is in charter.
+
+There shall be a “security subcommittee”, that is responsible for
 enforcing this guideline, monitoring review, and improving the process
 described herein.
 
-This team will be made up of "project defined".
+This team will be made up according to the Zephyr Project charter.
 
 Code Review
 ===========
@@ -178,8 +270,12 @@ because security considerations are often external to the Zephyr
 project itself, it may be necessary to increase this embargo time.
 The time necessary shall be clearly annotated in the issue itself.
 
-The list of issues shall be reviewed at least once a month by the core
-security team on the Zephyr Project.  This review should focus on
+.. todo: Cross check with Inaky's document.
+
+.. todo: Cross check with Securty Overview section.
+
+The list of issues shall be reviewed at least once a month by the
+security committee on the Zephyr Project.  This review should focus on
 tracking the fixes, determining if any external parties need to be
 notified or involved, and determining when to lift the embargo on the
 issue.  The embargo should not be lifted via an automated means, but
@@ -189,5 +285,5 @@ have been resolved.
 Modifications to This Document
 ==============================
 
-Changes to this document shall be reviewed by the core security team,
+Changes to this document shall be reviewed by the security committee,
 and approved by consensus.
