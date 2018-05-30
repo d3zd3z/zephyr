@@ -1,0 +1,81 @@
+/ {
+	sram0: memory@30000000 {
+		compatible = "mmio-sram";
+		reg = <0x30000000 0x20000>;
+	};
+
+	flash0: flash@10200000 {
+		reg = <0x10200000 0x800000>;
+	};
+
+	soc {
+		timer0: timer@50000000 {
+			compatible = "arm,cmsdk-timer";
+			reg = <0x50000000 0x1000>;
+			interrupts = <3 3>;
+		};
+
+		timer1: timer@50001000 {
+			compatible = "arm,cmsdk-timer";
+			reg = <0x50001000 0x1000>;
+			interrupts = <4 3>;
+		};
+
+		dtimer0: dtimer@50002000 {
+			compatible = "arm,cmsdk-dtimer";
+			reg = <0x50002000 0x1000>;
+			interrupts = <5 3>;
+		};
+
+		scc@5010c000 {
+			compatible = "arm,scc";
+			reg = <0x5010c000 0x1000>;
+		};
+
+		gpio0: gpio@50110000 {
+			compatible = "arm,cmsdk-gpio";
+			reg = <0x50110000 0x1000>;
+			interrupts = <68 3>;
+		};
+
+		uart0: uart@50101000 {
+			compatible = "cadence,pl011";
+			reg = <0x50101000 0x1000>;
+			interrupts = <39 3 40 3 41 3 43 3>;
+			interrupt-names = "rx", "tx", "rxtim", "err";
+			current-speed = <115200>;
+			label = "UART_0";
+		};
+
+		uart1: uart@50102000 {
+			compatible = "cadence,pl011";
+			reg = <0x50102000 0x1000>;
+			interrupts = <45 3 46 3 47 3 49 3>;
+			interrupt-names = "rx", "tx", "rxtim", "err";
+			current-speed = <115200>;
+			label = "UART_1";
+		};
+
+		i2c_touch: i2c@50104000 {
+			compatible = "arm,versatile-i2c";
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x50104000 0x1000>;
+			label = "I2C_TOUCH";
+		};
+
+		i2c_audio_conf: i2c@50105000 {
+			compatible = "arm,versatile-i2c";
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x50105000 0x1000>;
+			label = "I2C_AUDIO_CONF";
+		};
+	};
+};
+
+&nvic {
+	arm,num-irq-priority-bits = <3>;
+};

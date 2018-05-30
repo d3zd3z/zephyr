@@ -1,0 +1,6 @@
+identifier: musca_a
+name: ARM V2M MUSCA
+type: mcu
+arch: arm
+toolchain:
+  - gccarmemb
