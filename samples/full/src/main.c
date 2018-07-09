@@ -630,7 +630,7 @@ void main(void)
 
 	SYS_LOG_INF("Main entered");
 	// app_dhcpv4_startup();
-	// net_app_init();
+	net_app_init(NULL, NET_APP_NEED_IPV4, 30 * 1000);
 	SYS_LOG_INF("Should have DHCPv4 lease at this point.");
 
 	res = ipv4_lookup("time.google.com", time_ip, sizeof(time_ip));
