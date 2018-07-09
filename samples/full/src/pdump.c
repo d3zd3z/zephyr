@@ -36,10 +36,10 @@ pdump(const void *ibuffer, int length)
 				offset = 0;
 				ascii_offset = 0;
 			}
-			offset += sprintf(line+offset, "%08x:", i);
+			offset += sprintf(line+offset, "%08x", i);
 		} else if ((i & 7) == 0) {
-			offset += sprintf(line+offset, " -");
-			ascii[ascii_offset++] = ' ';
+			// offset += sprintf(line+offset, " -");
+			// ascii[ascii_offset++] = ' ';
 		}
 		offset += sprintf(line+offset, " %02x", buffer[i] & 0xFF);
 		ascii[ascii_offset++] = PRINTABLE (buffer[i] & 0xFF);
