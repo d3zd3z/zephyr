@@ -229,6 +229,14 @@ static int tcp_tx(void *ctx,
 		return res;
 	}
 
+	if (res != len) {
+		printf("Short send: %d\n", res);
+	}
+
+	// printk("----- SEND -----\n");
+	// pdump(buf, res);
+	// printk("----- END SEND -----\n");
+
 	switch errno {
 	case EAGAIN:
 		printf("Waiting for write, res: %d\n", len);
@@ -250,6 +258,9 @@ static int tcp_rx(void *ctx,
 	mbedtls_debug_print_buf(&the_ssl, 4, __FILE__, __LINE__, "tcp_rx", buf, res);
 	if (res >= 0) {
 		printf("RECV: %d from %d\n", res, sock);
+		// printk("----- RECV -----\n");
+		// pdump(buf, res);
+		// printk("----- END RECV -----\n");
 	}
 
 	if (res >= 0) {
