@@ -15,6 +15,7 @@
 #include <jwt.h>
 
 #include "mqtt.h"
+#include "pdump.h"
 
 #include <mbedtls/platform.h>
 #include <mbedtls/net.h>
@@ -106,6 +107,11 @@ static mbedtls_entropy_context entropy;
 static mbedtls_ctr_drbg_context ctr_drbg;
 static int sock;
 
+static u8_t send_buf[1024];
+static u8_t recv_buf[1024];
+static u8_t token[512];
+
+
 static int tcp_tx(void *ctx,
 		  const unsigned char *buf,
 		  size_t len)
@@ -171,6 +177,124 @@ static int tcp_rx(void *ctx,
 }
 
 const char *pers = "mini_client";  // What is this?
+
+typedef int (*tls_action)(void *data);
+
+/*
+ * A driving loop for mbed TLS.  Invokes 'op' with 'data'.  This is
+ * expected to return one of the MBEDTLS errors, with
+ * MBEDTLS_ERR_SSL_WANT_READ and MBEDTLS_ERR_SSL_WANT_WRITE handled
+ * specifically by this code.  This will return when the operation
+ * returns any other status result.
+ */
+static int tls_perform(tls_action action, void *data)
+{
+	int res = action(data);
+	short events = 0;
+	while (1) {
+		// SYS_LOG_INF("tls_perform loop: %d", res);
+		switch (res) {
+		case MBEDTLS_ERR_SSL_WANT_READ:
+			events = ZSOCK_POLLIN;
+			break;
+
+		case MBEDTLS_ERR_SSL_WANT_WRITE:
+			events = ZSOCK_POLLOUT;
+			break;
+
+		default:
+			/* Any other result is directly returned. */
+			return res;
+		}
+
+		struct zsock_pollfd fds[1] = {
+			[0] = {
+				.fd = sock,
+				.events = events,
+				.revents = 0,
+			},
+		};
+
+		// SYS_LOG_INF("polling: %d", events);
+		res = zsock_poll(fds, 1, 250);
+		if (res < 0) {
+			SYS_LOG_ERR("Socket poll error: %d\n", errno);
+			return -errno;
+		}
+
+		res = action(data);
+	}
+}
+
+/* An action to perform the TLS handshaking.  Data should be a pointer
+ * to the mbedtls_ssl_context. */
+static int action_handshake(void *data)
+{
+	mbedtls_ssl_context *ssl = data;
+
+	return mbedtls_ssl_handshake(ssl);
+}
+
+struct write_action {
+	mbedtls_ssl_context *context;
+	const unsigned char *buf;
+	size_t len;
+};
+
+/* An action to write data over the connection.  The data should be a
+ * pointer to a struct write_action.  This will also try reading data
+ * and processing it as MQTT received data.
+ *
+ * It is a little complex if we get blocked on both read and write.
+ * Currently, this doesn't ever happen (writes don't block in the
+ * Zephyr socket code as currently implemented).
+ */
+static int action_write(void *data)
+{
+	struct write_action *act = data;
+
+	/* Try the read first, in order to process the received data.
+	 */
+	int res = mbedtls_ssl_read(act->context, recv_buf, sizeof(recv_buf));
+	if (res > 0) {
+		printk("Read data: %d bytes\n", res);
+		pdump(recv_buf, res);
+		/* TODO: process incoming packets. */
+	} else if (res == MBEDTLS_ERR_SSL_WANT_READ ||
+		   res == MBEDTLS_ERR_SSL_WANT_WRITE) {
+		/* This is kind of the "normal" case of no data being
+		 * available. */
+	} else {
+		/* Some kind of error, so return that. */
+		return res;
+	}
+
+	/* At this point, we read, so now try the write. */
+	return mbedtls_ssl_write(act->context, act->buf, act->len);
+}
+
+struct idle_action {
+	mbedtls_ssl_context *context;
+};
+
+/* An action when we have nothing to do.  This will try reading, and
+ * delay for a single polling interval.  The polling will then allow
+ * for other operations to happen.  The main loop will not return
+ * unless there is an error. */
+static int action_idle(void *data)
+{
+	struct idle_action *act = data;
+
+	int res = mbedtls_ssl_read(act->context, recv_buf, sizeof(recv_buf));
+	if (res > 0) {
+		printk("Read data: %d bytes\n", res);
+		pdump(recv_buf, res);
+
+		res = MBEDTLS_ERR_SSL_WANT_READ;
+	}
+
+	return res;
+}
 
 /*
  * A TLS client, using mbed TLS.
@@ -278,49 +402,15 @@ void tls_client(const char *hostname, struct zsock_addrinfo *host, int port)
 	SYS_LOG_INF("State: %d", the_ssl.state);
 	// mbedtls_debug_set_threshold(2);
 
-	res = mbedtls_ssl_handshake(&the_ssl);
-	while (1) {
-		if (res != 0) {
-			if (res != MBEDTLS_ERR_SSL_WANT_READ) {
-				SYS_LOG_ERR("TLS handshake failed");
-				SYS_LOG_ERR("state: %d, result: %x", the_ssl.state, res);
-				return;
-			}
-		} else {
-			if (the_ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER) {
-				break;
-			} else {
-				SYS_LOG_ERR("Shouldn't really get here");
-				return;
-			}
-		}
-
-		/* We need to wait for data on the incoming socket,
-		 * and keep trying. */
-		struct zsock_pollfd fds[1] = {
-			[0] = {
-				.fd = sock,
-				.events = ZSOCK_POLLIN,
-				.revents = 0,
-			},
-		};
-
-		res = zsock_poll(fds, 1, 250);
-		if (res < 0) {
-			SYS_LOG_ERR("Socket poll error: %d\n", errno);
-			return;
-		}
-		if (res > 1) {
-			SYS_LOG_ERR("Weird return from poll: %d\n", res);
-			return;
-		}
-
-		SYS_LOG_ERR("Waited, try next step");
-		res = mbedtls_ssl_handshake(&the_ssl);
-		SYS_LOG_ERR("Step returned: %d (state=%d)", res, the_ssl.state);
+	res = tls_perform(action_handshake, &the_ssl);
+	if (res != 0) {
+		SYS_LOG_INF("Error on tls handshake: %d", res);
+		return;
 	}
-
-	SYS_LOG_INF("State: %d", the_ssl.state);
+	if (the_ssl.state != MBEDTLS_SSL_HANDSHAKE_OVER) {
+		SYS_LOG_INF("SSL handshake did not complete: %d", the_ssl.state);
+		return;
+	}
 
 	SYS_LOG_ERR("Done with TCP client startup");
 }
@@ -328,10 +418,6 @@ void tls_client(const char *hostname, struct zsock_addrinfo *host, int port)
 static const char client_id[] = "projects/iot-work-199419/locations/us-central1/"
 	"registries/my-registry/devices/zepfull";
 #define AUDIENCE "iot-work-199419"
-
-static u8_t send_buf[1024];
-static u8_t recv_buf[1024];
-static u8_t token[512];
 
 extern unsigned char zepfull_private_der[];
 extern unsigned int zepfull_private_der_len;
@@ -379,44 +465,14 @@ void mqtt_startup(void)
 				    &conmsg);
 	printk("build packet: res = %d, len=%d\n", res, send_len);
 
+	struct write_action wract = {
+		.context = &the_ssl,
+		.buf = send_buf,
+		.len = send_len,
+	};
+
 	pdump(send_buf, send_len);
-	res = mbedtls_ssl_write(&the_ssl, send_buf, send_len);
-	printk("Send result: %d\n", res);
-	if (res < 0) {
-		return;
-	}
-	if (res != send_len) {
-		printk("Short send\n");
-	}
-
-	/* Try to receive something. */
-	while (1) {
-		struct zsock_pollfd fds[1] = {
-			[0] = {
-				.fd = sock,
-				.events = ZSOCK_POLLIN,
-				.revents = 0,
-			},
-		};
-
-		res = zsock_poll(fds, 1, 5000);
-		if (res < 0) {
-			printk("Socket poll error: %d\n", errno);
-			return;
-		}
-		if (res == 0) {
-			printk("Moving on\n");
-			break;
-		}
-
-		res = mbedtls_ssl_read(&the_ssl, recv_buf, sizeof(recv_buf));
-		if (res < 0) {
-			// printk("Read error: %d\n", res);
-		} else {
-			printk("Read data: %d bytes:\n", res);
-			pdump(recv_buf, res);
-		}
-	}
+	res = tls_perform(action_write, &wract);
 
 #if 1
 	/* Try subscribing to the device state message. */
@@ -447,8 +503,10 @@ void mqtt_startup(void)
 				&pmsg);
 	printk("Publish packet: res=%d, len=%d\n", res, send_len);
 #endif
+	wract.buf = send_buf;
+	wract.len = send_len;
 	pdump(send_buf, send_len);
-	res = mbedtls_ssl_write(&the_ssl, send_buf, send_len);
+	res = tls_perform(action_write, &wract);
 	printk("Send result: %d\n", res);
 	if (res < 0) {
 		return;
@@ -457,31 +515,15 @@ void mqtt_startup(void)
 		printk("Short send\n");
 	}
 
-	/* Try to receive something. */
 	while (1) {
-		struct zsock_pollfd fds[1] = {
-			[0] = {
-				.fd = sock,
-				.events = ZSOCK_POLLIN,
-				.revents = 0,
-			},
+		struct idle_action idact = {
+			.context = &the_ssl,
 		};
 
-		res = zsock_poll(fds, 1, 5000);
-		if (res < 0) {
-			printk("Socket poll error: %d\n", errno);
+		res = tls_perform(action_idle, &idact);
+		if (res <= 0) {
+			printk("Idle error: %d\n", res);
 			return;
-		}
-		if (res == 0) {
-			printk(".");
-		}
-
-		res = mbedtls_ssl_read(&the_ssl, recv_buf, sizeof(recv_buf));
-		if (res < 0) {
-			// printk("Read error: %d\n", res);
-		} else {
-			printk("Read data: %d bytes:\n", res);
-			pdump(recv_buf, res);
 		}
 	}
 }
