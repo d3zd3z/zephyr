@@ -154,8 +154,15 @@ static u8_t recv_buf[1024];
 static size_t recv_used;
 static u8_t token[512];
 
+/* A queue of publish replies we need to return. */
+#define PUBACK_SIZE 8  /* Change macro if not power of two */
+#define INC_PUBACK_Q(x__) (((x__) + 1) & (PUBACK_SIZE - 1))
+static u16_t puback_ids[PUBACK_SIZE];
+static u16_t puback_head, puback_tail;
+/*
 static struct mqtt_publish_msg incoming_publish;
 static bool have_incoming_publish;
+*/
 
 static void process_connack(u8_t *buf, size_t size)
 {
@@ -198,14 +205,28 @@ static void process_suback(u8_t *buf, size_t size)
 
 static void process_publish(u8_t *buf, size_t size)
 {
+	struct mqtt_publish_msg incoming_publish;
+
 	int res = mqtt_unpack_publish(buf, size, &incoming_publish);
 	if (res < 0) {
 		SYS_LOG_ERR("Malformed PUBLISH message");
 		return;
 	}
 
+	if (incoming_publish.qos != MQTT_QoS1) {
+		SYS_LOG_ERR("Unsupported QOS on publish");
+		return;
+	}
+
 	printk("Got publish: id:%d\n", incoming_publish.pkt_id);
-	have_incoming_publish = true;
+
+	/* Queue this up. */
+	puback_ids[puback_head] = incoming_publish.pkt_id;
+	puback_head = INC_PUBACK_Q(puback_head);
+
+	if (puback_head == puback_tail) {
+		SYS_LOG_ERR("Too many pub ack replies came in!");
+	}
 }
 
 static void process_puback(u8_t *buf, size_t size)
@@ -236,6 +257,7 @@ static void process_packet(u8_t *buf, size_t size)
 		break;
 	case MQTT_PUBACK:
 		process_puback(buf, size);
+		break;
 	default:
 		SYS_LOG_ERR("Unsupported packet received: %x", buf[0]);
 		break;
@@ -254,7 +276,9 @@ static int check_read(mbedtls_ssl_context *context)
 	recv_used += res;
 
 	int size = mqtt_length(recv_buf, recv_used);
-	while (size > 0 && size >= recv_used) {
+	printk("Read: %d (%d) size=%d\n", res, recv_used, size);
+
+	while (size > 0 && size <= recv_used) {
 		if (size > sizeof(recv_buf)) {
 			SYS_LOG_ERR("FAILURE: received packet larger than buffer: %d > %d",
 				    size, sizeof(recv_buf));
@@ -276,6 +300,11 @@ static int check_read(mbedtls_ssl_context *context)
 		}
 
 		recv_used -= size;
+
+		/* Break here, to allow us to possibly send a reply,
+		 * since we don't properly queue responses.  TODO:
+		 * This needs to be fixed. */
+		break;
 
 		size = mqtt_length(recv_buf, recv_used);
 	}
@@ -453,7 +482,7 @@ static int action_idle(void *data)
 	struct idle_action *act = data;
 
 	int res = check_read(act->context);
-	if (res > 0 && !got_reply && !have_incoming_publish) {
+	if (res > 0 && !got_reply && (puback_head == puback_tail)) {
 		/* In the valid case, just wait for more data. */
 		res = MBEDTLS_ERR_SSL_WANT_READ;
 	}
@@ -655,7 +684,7 @@ void mqtt_startup(void)
 	printk("Done with connect\n");
 	got_reply = false;
 
-#if 0
+#if 1
 	/* Try subscribing to the device state message. */
 	static const char *topics[] = {
 		"/devices/zepfull/config",
@@ -696,6 +725,7 @@ void mqtt_startup(void)
 		printk("Short send\n");
 	}
 
+#if 0
 	while (!got_reply) {
 		printk("Waiting for SUBACK\n");
 		struct idle_action idact = {
@@ -708,6 +738,7 @@ void mqtt_startup(void)
 			return;
 		}
 	}
+#endif
 
 	got_reply = 0;
 
@@ -722,21 +753,14 @@ void mqtt_startup(void)
 			return;
 		}
 
-		if (have_incoming_publish) {
-			/* Turn this off before we reply, since our
-			 * reply may receive another response. */
-			have_incoming_publish = false;
-
+		while (puback_head != puback_tail) {
 			/* Send the puback back so that the remote
 			 * feels we have received the message. */
-			if (incoming_publish.qos != MQTT_QoS1) {
-				SYS_LOG_ERR("Publish not qos 1");
-				continue;
-			}
-
 			res = mqtt_pack_puback(send_buf, &send_len, sizeof(send_buf),
-					       incoming_publish.pkt_id);
-			printk("Puback: res=%d, len=%d\n", res, send_len);
+					       puback_ids[puback_tail]);
+			printk("Send Puback: res=%d, len=%d\n", res, send_len);
+
+			puback_tail = INC_PUBACK_Q(puback_tail);
 
 			wract.buf = send_buf;
 			wract.len = send_len;
