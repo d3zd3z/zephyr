@@ -53,6 +53,44 @@ static unsigned char heap[65536];
  */
 #include "globalsign.inc"
 
+/*
+ * Determine the length of an MQTT packet.
+ *
+ * Returns:
+ *   > 0    The length, in bytes, of the MQTT packet this starts
+ *   0      We don't have enough data to determine the length.
+ *   -errno The packet is malformed.
+ */
+static int mqtt_length(u8_t *data, size_t len)
+{
+	u32_t size = 0;
+	int shift = 0;
+	int pos = 1;
+
+	while (1) {
+		if (pos >= 5) {
+			return -EINVAL;
+		}
+
+		if (pos >= len) {
+			return 0;
+		}
+
+		u8_t ch = data[pos];
+
+		size |= (ch & 0x7F) << shift;
+
+		if ((ch & 0x80) == 0) {
+			break;
+		}
+
+		shift += 7;
+		pos++;
+	}
+
+	return size + pos + 1;
+}
+
 static int entropy_source(void *data, unsigned char *output, size_t len,
 			  size_t *olen)
 {
@@ -107,10 +145,143 @@ static mbedtls_entropy_context entropy;
 static mbedtls_ctr_drbg_context ctr_drbg;
 static int sock;
 
+/* State information.  This really should be in a structure per
+ * instance. */
+static bool got_reply;
+
 static u8_t send_buf[1024];
 static u8_t recv_buf[1024];
+static size_t recv_used;
 static u8_t token[512];
 
+static struct mqtt_publish_msg incoming_publish;
+static bool have_incoming_publish;
+
+static void process_connack(u8_t *buf, size_t size)
+{
+	u8_t session;
+	u8_t connect_rc;
+
+	int res = mqtt_unpack_connack(buf, size, &session, &connect_rc);
+	if (res < 0) {
+		SYS_LOG_ERR("Malformed CONNACK received");
+		return;
+	}
+
+	if (connect_rc != 0) {
+		SYS_LOG_ERR("Error establishing connection: %d", connect_rc);
+		return;
+	}
+
+	printk("Got connack\n");
+	got_reply = true;
+}
+
+static void process_suback(u8_t *buf, size_t size)
+{
+	u16_t pkt_id;
+	u8_t items;
+	enum mqtt_qos granted_qos[4];
+
+	int res = mqtt_unpack_suback(buf, size, &pkt_id,
+				     &items, ARRAY_SIZE(granted_qos),
+				     granted_qos);
+	if (res < 0) {
+		SYS_LOG_ERR("Malformed SUBACK message");
+		return;
+	}
+
+	printk("Got suback: id:%d, items:%d, qos[0]:%d\n",
+	       pkt_id, items, granted_qos[0]);
+	got_reply = true;
+}
+
+static void process_publish(u8_t *buf, size_t size)
+{
+	int res = mqtt_unpack_publish(buf, size, &incoming_publish);
+	if (res < 0) {
+		SYS_LOG_ERR("Malformed PUBLISH message");
+		return;
+	}
+
+	printk("Got publish: id:%d\n", incoming_publish.pkt_id);
+	have_incoming_publish = true;
+}
+
+static void process_puback(u8_t *buf, size_t size)
+{
+	u16_t pkt_id;
+
+	int res = mqtt_unpack_puback(buf, size, &pkt_id);
+	if (res < 0) {
+		SYS_LOG_ERR("Malformed PUBACK message");
+		return;
+	}
+
+	printk("Got puback: id:%d\n", pkt_id);
+	got_reply = true;
+}
+
+static void process_packet(u8_t *buf, size_t size)
+{
+	switch (MQTT_PACKET_TYPE(buf[0])) {
+	case MQTT_CONNACK:
+		process_connack(buf, size);
+		break;
+	case MQTT_SUBACK:
+		process_suback(buf, size);
+		break;
+	case MQTT_PUBLISH:
+		process_publish(buf, size);
+		break;
+	case MQTT_PUBACK:
+		process_puback(buf, size);
+	default:
+		SYS_LOG_ERR("Unsupported packet received: %x", buf[0]);
+		break;
+	}
+}
+
+static int check_read(mbedtls_ssl_context *context)
+{
+	int res = mbedtls_ssl_read(context,
+				   recv_buf + recv_used,
+				   sizeof(recv_buf) - recv_used);
+	if (res <= 0) {
+		return res;
+	}
+
+	recv_used += res;
+
+	int size = mqtt_length(recv_buf, recv_used);
+	while (size > 0 && size >= recv_used) {
+		if (size > sizeof(recv_buf)) {
+			SYS_LOG_ERR("FAILURE: received packet larger than buffer: %d > %d",
+				    size, sizeof(recv_buf));
+			// TODO: Discard this packet, although there probably
+			// isn't really a way to recover from this.
+			return res;
+		}
+
+		printk("Process packet: %x\n", recv_buf[0]);
+		pdump(recv_buf, recv_used);
+
+		process_packet(recv_buf, size);
+
+		/* Consume this part of the buffer, moving any
+		 * remaining to the start. */
+
+		if (recv_used > size) {
+			memmove(recv_buf, recv_buf + size, recv_used - size);
+		}
+
+		recv_used -= size;
+
+		size = mqtt_length(recv_buf, recv_used);
+	}
+
+	return res;
+}
 
 static int tcp_tx(void *ctx,
 		  const unsigned char *buf,
@@ -255,16 +426,12 @@ static int action_write(void *data)
 
 	/* Try the read first, in order to process the received data.
 	 */
-	int res = mbedtls_ssl_read(act->context, recv_buf, sizeof(recv_buf));
-	if (res > 0) {
-		printk("Read data: %d bytes\n", res);
-		pdump(recv_buf, res);
-		/* TODO: process incoming packets. */
-	} else if (res == MBEDTLS_ERR_SSL_WANT_READ ||
+	int res = check_read(act->context);
+	if (res == MBEDTLS_ERR_SSL_WANT_READ ||
 		   res == MBEDTLS_ERR_SSL_WANT_WRITE) {
 		/* This is kind of the "normal" case of no data being
 		 * available. */
-	} else {
+	} else if (res < 0) {
 		/* Some kind of error, so return that. */
 		return res;
 	}
@@ -285,11 +452,9 @@ static int action_idle(void *data)
 {
 	struct idle_action *act = data;
 
-	int res = mbedtls_ssl_read(act->context, recv_buf, sizeof(recv_buf));
-	if (res > 0) {
-		printk("Read data: %d bytes\n", res);
-		pdump(recv_buf, res);
-
+	int res = check_read(act->context);
+	if (res > 0 && !got_reply && !have_incoming_publish) {
+		/* In the valid case, just wait for more data. */
 		res = MBEDTLS_ERR_SSL_WANT_READ;
 	}
 
@@ -474,7 +639,23 @@ void mqtt_startup(void)
 	pdump(send_buf, send_len);
 	res = tls_perform(action_write, &wract);
 
-#if 1
+	while (!got_reply) {
+		printk("Waiting for CONNACT\n");
+		struct idle_action idact = {
+			.context = &the_ssl,
+		};
+
+		res = tls_perform(action_idle, &idact);
+		if (res <= 0) {
+			printk("Idle error: %d\n", res);
+			return;
+		}
+	}
+
+	printk("Done with connect\n");
+	got_reply = false;
+
+#if 0
 	/* Try subscribing to the device state message. */
 	static const char *topics[] = {
 		"/devices/zepfull/config",
@@ -483,11 +664,11 @@ void mqtt_startup(void)
 		MQTT_QoS1,
 	};
 	res = mqtt_pack_subscribe(send_buf, &send_len, sizeof(send_buf),
-				  123, 1, topics, qoss);
+				  124, 1, topics, qoss);
 	printk("Subscribe packet: res=%d, len=%d\n", res, send_len);
 #else
 #define TOPIC "/devices/zepfull/state"
-#define MESSAGE "Hereismystate"
+#define MESSAGE "Some more state"
 	/* Try sending a state update. */
 	struct mqtt_publish_msg pmsg = {
 		.dup = 0,
@@ -515,6 +696,21 @@ void mqtt_startup(void)
 		printk("Short send\n");
 	}
 
+	while (!got_reply) {
+		printk("Waiting for SUBACK\n");
+		struct idle_action idact = {
+			.context = &the_ssl,
+		};
+
+		res = tls_perform(action_idle, &idact);
+		if (res <= 0) {
+			printk("Idle error: %d\n", res);
+			return;
+		}
+	}
+
+	got_reply = 0;
+
 	while (1) {
 		struct idle_action idact = {
 			.context = &the_ssl,
@@ -524,6 +720,32 @@ void mqtt_startup(void)
 		if (res <= 0) {
 			printk("Idle error: %d\n", res);
 			return;
+		}
+
+		if (have_incoming_publish) {
+			/* Turn this off before we reply, since our
+			 * reply may receive another response. */
+			have_incoming_publish = false;
+
+			/* Send the puback back so that the remote
+			 * feels we have received the message. */
+			if (incoming_publish.qos != MQTT_QoS1) {
+				SYS_LOG_ERR("Publish not qos 1");
+				continue;
+			}
+
+			res = mqtt_pack_puback(send_buf, &send_len, sizeof(send_buf),
+					       incoming_publish.pkt_id);
+			printk("Puback: res=%d, len=%d\n", res, send_len);
+
+			wract.buf = send_buf;
+			wract.len = send_len;
+			pdump(send_buf, send_len);
+			res = tls_perform(action_write, &wract);
+
+			if (res != send_len) {
+				SYS_LOG_ERR("Problem sending PUBACK: %d", res);
+			}
 		}
 	}
 }
