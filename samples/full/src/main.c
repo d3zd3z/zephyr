@@ -16,6 +16,7 @@
 #include "protocol.h"
 
 #include <net/sntp.h>
+#include <net/net_config.h>
 
 /* This comes from newlib. */
 #include <time.h>
@@ -161,7 +162,7 @@ void main(void)
 
 	SYS_LOG_INF("Main entered");
 	// app_dhcpv4_startup();
-	net_app_init(NULL, NET_APP_NEED_IPV4, 30 * 1000);
+	// net_app_init(NULL, NET_CONFIG_NEED_IPV4, 30 * 1000);
 	SYS_LOG_INF("Should have DHCPv4 lease at this point.");
 
 	res = ipv4_lookup("time.google.com", time_ip, sizeof(time_ip));
