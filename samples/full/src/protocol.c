@@ -159,10 +159,10 @@ static u8_t token[512];
 #define INC_PUBACK_Q(x__) (((x__) + 1) & (PUBACK_SIZE - 1))
 static u16_t puback_ids[PUBACK_SIZE];
 static u16_t puback_head, puback_tail;
-/*
-static struct mqtt_publish_msg incoming_publish;
-static bool have_incoming_publish;
-*/
+
+/* The next time we should send a keep-alive packet. */
+static u64_t next_alive;
+#define ALIVE_TIME (60 * MSEC_PER_SEC)
 
 static void process_connack(u8_t *buf, size_t size)
 {
@@ -258,6 +258,9 @@ static void process_packet(u8_t *buf, size_t size)
 	case MQTT_PUBACK:
 		process_puback(buf, size);
 		break;
+	case MQTT_PINGRESP:
+		printk("Ping response\n");
+		break;
 	default:
 		SYS_LOG_ERR("Unsupported packet received: %x", buf[0]);
 		break;
@@ -300,11 +303,6 @@ static int check_read(mbedtls_ssl_context *context)
 		}
 
 		recv_used -= size;
-
-		/* Break here, to allow us to possibly send a reply,
-		 * since we don't properly queue responses.  TODO:
-		 * This needs to be fixed. */
-		break;
 
 		size = mqtt_length(recv_buf, recv_used);
 	}
@@ -481,6 +479,12 @@ static int action_idle(void *data)
 {
 	struct idle_action *act = data;
 
+	/* If we need to send a keep alive, just return immediately.
+	 */
+	if (next_alive != 0 && k_uptime_get() >= next_alive) {
+		return 1;
+	}
+
 	int res = check_read(act->context);
 	if (res > 0 && !got_reply && (puback_head == puback_tail)) {
 		/* In the valid case, just wait for more data. */
@@ -647,7 +651,7 @@ void mqtt_startup(void)
 	conmsg.clean_session = 1;
 	conmsg.client_id = (char *)client_id;  /* Discard const */
 	conmsg.client_id_len = strlen(client_id);
-	conmsg.keep_alive = 60; /* One minute */
+	conmsg.keep_alive = 60 * 2; /* Two minutes */
 	conmsg.password = token;
 	conmsg.password_len = jwt_payload_len(&jb);
 
@@ -742,6 +746,8 @@ void mqtt_startup(void)
 
 	got_reply = 0;
 
+	next_alive = k_uptime_get() + ALIVE_TIME;
+
 	while (1) {
 		struct idle_action idact = {
 			.context = &the_ssl,
@@ -754,6 +760,7 @@ void mqtt_startup(void)
 		}
 
 		while (puback_head != puback_tail) {
+			printk("head=%d, tail=%d\n", puback_head, puback_tail);
 			/* Send the puback back so that the remote
 			 * feels we have received the message. */
 			res = mqtt_pack_puback(send_buf, &send_len, sizeof(send_buf),
@@ -770,6 +777,24 @@ void mqtt_startup(void)
 			if (res != send_len) {
 				SYS_LOG_ERR("Problem sending PUBACK: %d", res);
 			}
+
+			next_alive = k_uptime_get() + ALIVE_TIME;
+		}
+
+		if (k_uptime_get() >= next_alive) {
+			res = mqtt_pack_pingreq(send_buf, &send_len, sizeof(send_buf));
+			printk("Send ping, res=%d, len=%d\n", res, send_len);
+
+			wract.buf = send_buf;
+			wract.len = send_len;
+			pdump(send_buf, send_len);
+			res = tls_perform(action_write, &wract);
+
+			if (res != send_len) {
+				SYS_LOG_ERR("Problem sending ping: %d", res);
+			}
+
+			next_alive = k_uptime_get() + ALIVE_TIME;
 		}
 	}
 }
