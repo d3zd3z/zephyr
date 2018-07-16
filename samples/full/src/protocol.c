@@ -624,8 +624,11 @@ static const char client_id[] = "projects/iot-work-199419/locations/us-central1/
 	"registries/my-registry/devices/zepfull";
 #define AUDIENCE "iot-work-199419"
 
-extern unsigned char zepfull_private_der[];
-extern unsigned int zepfull_private_der_len;
+extern const unsigned char zepfull_private_der[];
+extern const unsigned int zepfull_private_der_len;
+
+extern const unsigned char zepfull_ec_private_der[];
+extern const unsigned int zepfull_ec_private_der_len;
 
 #if 0
 static void show_stack(void)
@@ -663,7 +666,12 @@ void mqtt_startup(void)
 		return;
 	}
 
+#ifdef CONFIG_JWT_SIGN_RSA
 	res = jwt_sign(&jb, zepfull_private_der, zepfull_private_der_len);
+#endif
+#ifdef CONFIG_JWT_SIGN_ECDSA
+	res = jwt_sign(&jb, zepfull_ec_private_der, zepfull_ec_private_der_len);
+#endif
 	if (res != 0) {
 		printk("Error with JWT token\n");
 		return;
