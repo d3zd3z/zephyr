@@ -43,7 +43,7 @@ time_t k_time(time_t *ptr);
  */
 #ifdef MBEDTLS_MEMORY_BUFFER_ALLOC_C
 #  include <mbedtls/memory_buffer_alloc.h>
-static unsigned char heap[65536];
+static unsigned char heap[56240];
 #else
 #  error "TODO: no memory buffer configured"
 #endif
