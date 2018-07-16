@@ -11,9 +11,19 @@
 #include <jwt.h>
 #include <json.h>
 
+#ifdef CONFIG_JWT_SIGN_RSA
 #include <mbedtls/pk.h>
 #include <mbedtls/rsa.h>
 #include <mbedtls/sha256.h>
+#endif
+
+#ifdef CONFIG_JWT_SIGN_ECDSA
+#include <tinycrypt/sha256.h>
+#include <tinycrypt/ecc_dsa.h>
+#include <tinycrypt/constants.h>
+
+#include <random/rand32.h>
+#endif
 
 /*
  * Base-64 encoding is typically done by lookup into a 64-byte static
@@ -143,7 +153,12 @@ static void jwt_add_header(struct jwt_builder *builder)
 {
 	static const struct jwt_header head = {
 		.typ = "JWT",
+#ifdef CONFIG_JWT_SIGN_RSA
 		.alg = "RS256",
+#endif
+#ifdef CONFIG_JWT_SIGN_ECDSA
+		.alg = "ES256",
+#endif
 	};
 
 	int res = json_obj_encode(jwt_header_desc, ARRAY_SIZE(jwt_header_desc),
@@ -174,6 +189,7 @@ int jwt_add_payload(struct jwt_builder *builder,
 	return res;
 }
 
+#ifdef CONFIG_JWT_SIGN_RSA
 int jwt_sign(struct jwt_builder *builder,
 	     const char *der_key,
 	     size_t der_key_len)
@@ -209,6 +225,52 @@ int jwt_sign(struct jwt_builder *builder,
 
 	return builder->overflowed ? -ENOMEM : 0;
 }
+#endif
+
+#ifdef CONFIG_JWT_SIGN_ECDSA
+/* TODO, this needs to be a real CSPRNG, use the one in tinycrypt */
+/* TODO, figure out why this can't be static. */
+int default_CSPRNG(u8_t *dest, unsigned int size)
+{
+	while (size) {
+		u32_t len = size >= sizeof(u32_t) ? sizeof(u32_t) : size;
+		u32_t rv = sys_rand32_get();
+
+		memcpy(dest, &rv, len);
+		dest += len;
+		size -= len;
+	}
+
+	return 1;
+}
+
+int jwt_sign(struct jwt_builder *builder,
+	     const char *der_key,
+	     size_t der_key_len)
+{
+	struct tc_sha256_state_struct ctx;
+
+	u8_t hash[32], sig[64];
+	tc_sha256_init(&ctx);
+	tc_sha256_update(&ctx, builder->base, builder->buf - builder->base);
+	tc_sha256_final(hash, &ctx);
+
+	uECC_set_rng(&default_CSPRNG);
+
+	/* Note that tinycrypt only supports P-256. */
+	int res = uECC_sign(der_key, hash, sizeof(hash),
+			    sig, &curve_secp256r1);
+	if (res != TC_CRYPTO_SUCCESS) {
+		return -EINVAL;
+	}
+
+	base64_outch(builder, '.');
+	base64_append_bytes(sig, sizeof(sig), builder);
+	base64_flush(builder);
+
+	return 0;
+}
+#endif
 
 int jwt_init_builder(struct jwt_builder *builder,
 		     char *buffer,
