@@ -18,6 +18,7 @@
 #endif
 
 #ifdef CONFIG_JWT_SIGN_ECDSA
+#include <tinycrypt/ctr_prng.h>
 #include <tinycrypt/sha256.h>
 #include <tinycrypt/ecc_dsa.h>
 #include <tinycrypt/constants.h>
@@ -228,20 +229,41 @@ int jwt_sign(struct jwt_builder *builder,
 #endif
 
 #ifdef CONFIG_JWT_SIGN_ECDSA
-/* TODO, this needs to be a real CSPRNG, use the one in tinycrypt */
-/* TODO, figure out why this can't be static. */
-int default_CSPRNG(u8_t *dest, unsigned int size)
-{
-	while (size) {
-		u32_t len = size >= sizeof(u32_t) ? sizeof(u32_t) : size;
-		u32_t rv = sys_rand32_get();
+static TCCtrPrng_t prng_state;
+static bool prng_init;
 
-		memcpy(dest, &rv, len);
-		dest += len;
-		size -= len;
+static const char personalize[] = "zephyr:drivers/jwt/jwt.c";
+
+static int setup_prng(void)
+{
+	if (prng_init) {
+		return 0;
+	}
+	prng_init = true;
+
+	uint8_t entropy[TC_AES_KEY_SIZE + TC_AES_BLOCK_SIZE];
+
+	for (int i = 0; i < sizeof(entropy); i += sizeof(uint32_t)) {
+		uint32_t rv = sys_rand32_get();
+		memcpy(entropy + i, &rv, sizeof(uint32_t));
 	}
 
-	return 1;
+	// pdump(entropy, sizeof(entropy));
+	int res = tc_ctr_prng_init(&prng_state,
+				   (const uint8_t *) &entropy, sizeof(entropy),
+				   personalize,
+				   sizeof(personalize));
+	// printk("111 res: %d\n", res);
+
+	return res == TC_CRYPTO_SUCCESS ? 0 : -EINVAL;
+}
+
+int default_CSPRNG(u8_t *dest, unsigned int size)
+{
+	int res = tc_ctr_prng_generate(&prng_state, NULL, 0, dest, size);
+	// printk("csprng: %d\n", res);
+	// pdump(dest, size);
+	return res;
 }
 
 int jwt_sign(struct jwt_builder *builder,
@@ -255,11 +277,15 @@ int jwt_sign(struct jwt_builder *builder,
 	tc_sha256_update(&ctx, builder->base, builder->buf - builder->base);
 	tc_sha256_final(hash, &ctx);
 
+	int res = setup_prng();
+	if (res != 0) {
+		return res;
+	}
 	uECC_set_rng(&default_CSPRNG);
 
 	/* Note that tinycrypt only supports P-256. */
-	int res = uECC_sign(der_key, hash, sizeof(hash),
-			    sig, &curve_secp256r1);
+	res = uECC_sign(der_key, hash, sizeof(hash),
+			sig, &curve_secp256r1);
 	if (res != TC_CRYPTO_SUCCESS) {
 		return -EINVAL;
 	}
