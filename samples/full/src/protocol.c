@@ -548,6 +548,10 @@ void tls_client(const char *hostname, struct zsock_addrinfo *host, int port)
 	/* MBEDTLS_MEMORY_BUFFER_ALLOC_C */
 	mbedtls_memory_buffer_alloc_init(heap, sizeof(heap));
 
+	/*
+	 * Never disable root cert verification, like this.
+	 */
+#if 1
 	/* Load the intended root cert in. */
 	if (mbedtls_x509_crt_parse_der(&ca, globalsign_certificate,
 				       sizeof(globalsign_certificate)) != 0) {
@@ -561,6 +565,9 @@ void tls_client(const char *hostname, struct zsock_addrinfo *host, int port)
 	 * certificate. */
 	mbedtls_ssl_conf_ca_chain(&the_conf, &ca, NULL);
 	mbedtls_ssl_conf_authmode(&the_conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+#else
+	mbedtls_ssl_conf_authmode(&the_conf, MBEDTLS_SSL_VERIFY_NONE);
+#endif
 
 	// mbedtls_debug_set_threshold(2);
 	if (mbedtls_ssl_setup(&the_ssl, &the_conf) != 0) {
