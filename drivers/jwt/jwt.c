@@ -11,14 +11,6 @@
 #include <jwt.h>
 #include <json.h>
 
-#if 0
-#if !defined(CONFIG_MBEDTLS_CFG_FILE)
-#  error "Must define custom config file"
-#else
-#  include CONFIG_MBEDTLS_CFG_FILE
-#endif
-#endif
-
 #include <mbedtls/pk.h>
 #include <mbedtls/rsa.h>
 #include <mbedtls/sha256.h>
