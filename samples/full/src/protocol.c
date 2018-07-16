@@ -627,6 +627,22 @@ static const char client_id[] = "projects/iot-work-199419/locations/us-central1/
 extern unsigned char zepfull_private_der[];
 extern unsigned int zepfull_private_der_len;
 
+#if 0
+static void show_stack(void)
+{
+	static bool once = false;
+
+	extern u8_t _main_stack[];
+
+	if (!once) {
+		once = true;
+		// pdump(_main_stack, CONFIG_MAIN_STACK_SIZE);
+		// pdump(heap, sizeof(heap));
+		mbedtls_memory_buffer_alloc_status();
+	}
+}
+#endif
+
 void mqtt_startup(void)
 {
 	struct mqtt_connect_msg conmsg;
@@ -802,6 +818,8 @@ void mqtt_startup(void)
 			}
 
 			next_alive = k_uptime_get() + ALIVE_TIME;
+
+			// show_stack();
 		}
 	}
 }
