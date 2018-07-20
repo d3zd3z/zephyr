@@ -22,6 +22,25 @@
 #include <uart.h>
 #include <linker/sections.h>
 
+/* UART registers struct */
+struct uart_cmsdk_apb {
+	/* offset: 0x000 (r/w) data register    */
+	volatile u32_t  data;
+	/* offset: 0x004 (r/w) status register  */
+	volatile u32_t  state;
+	/* offset: 0x008 (r/w) control register */
+	volatile u32_t  ctrl;
+	union {
+		/* offset: 0x00c (r/ ) interrupt status register */
+		volatile u32_t  intstatus;
+		/* offset: 0x00c ( /w) interrupt clear register  */
+		volatile u32_t  intclear;
+	};
+	/* offset: 0x010 (r/w) baudrate divider register */
+	volatile u32_t  bauddiv;
+};
+
+
 #define FREQ_IRLPBAUD16_MIN             (1420000u)     /* 1.42 MHz */
 #define FREQ_IRLPBAUD16_MAX             (2120000u)     /* 2.12 MHz */
 #define SAMPLING_FACTOR                 (16u)
@@ -155,28 +174,38 @@ struct _uart_pl011_reg_map_t {
 #define UART_PL011_UARTDMACR_TX_MASK (                  \
             0x1u<<UART_PL011_UARTDMACR_TXEN_OFF)
 
-static void _uart_pl011_enable(volatile struct _uart_pl011_reg_map_t* p_uart)
+static void _uart_pl011_enable(struct _uart_pl011_reg_map_t* p_uart)
 {
     p_uart->uartcr |=  UART_PL011_UARTCR_EN_MASK;
 }
 
-static void _uart_pl011_disable(volatile struct _uart_pl011_reg_map_t* p_uart)
+static void _uart_pl011_disable(struct _uart_pl011_reg_map_t* p_uart)
 {
     p_uart->uartcr &= ~UART_PL011_UARTCR_EN_MASK;
 }
 
-static bool _uart_pl011_is_enabled(volatile struct _uart_pl011_reg_map_t* p_uart)
+static bool _uart_pl011_is_enabled(struct _uart_pl011_reg_map_t* p_uart)
 {
     return (bool)(p_uart->uartcr & UART_PL011_UARTCR_EN_MASK);
 }
 
-static void _uart_pl011_enable_fifo(volatile struct _uart_pl011_reg_map_t* p_uart)
+static void _uart_pl011_enable_fifo(struct _uart_pl011_reg_map_t* p_uart)
 {
     p_uart->uartlcr_h |= UART_PL011_UARTLCR_H_FEN_MASK;
 }
 
+static void _uart_pl011_disable_fifo(struct _uart_pl011_reg_map_t* p_uart)
+{
+    p_uart->uartlcr_h &= ~UART_PL011_UARTLCR_H_FEN_MASK;
+}
+
+static bool _uart_pl011_is_fifo_enabled(struct _uart_pl011_reg_map_t* p_uart)
+{
+    return (bool)(p_uart->uartlcr_h & UART_PL011_UARTLCR_H_FEN_MASK);
+}
+
 static enum uart_pl011_error_t _uart_pl011_set_baudrate(
-                    volatile struct _uart_pl011_reg_map_t* p_uart,
+                    struct _uart_pl011_reg_map_t* p_uart,
                     uint32_t clk, uint32_t baudrate)
 {
     /* Avoiding float calculations, bauddiv is left shifted by 6 */
@@ -207,7 +236,7 @@ static enum uart_pl011_error_t _uart_pl011_set_baudrate(
     return UART_PL011_ERR_NONE;
 }
 
-static void _uart_pl011_set_format(volatile struct _uart_pl011_reg_map_t* p_uart,
+static void _uart_pl011_set_format(struct _uart_pl011_reg_map_t* p_uart,
                     enum uart_pl011_wlen_t word_len,
                     enum uart_pl011_parity_t parity,
                     enum uart_pl011_stopbit_t stop_bits)
@@ -223,7 +252,96 @@ static void _uart_pl011_set_format(volatile struct _uart_pl011_reg_map_t* p_uart
 
 }
 
-static bool _uart_pl011_is_readable(volatile struct _uart_pl011_reg_map_t* uart)
+static void _uart_pl011_set_cr_bit(struct _uart_pl011_reg_map_t* p_uart,
+                    uint32_t mask)
+{
+    bool uart_enabled = _uart_pl011_is_enabled(p_uart);
+    bool fifo_enabled = _uart_pl011_is_fifo_enabled(p_uart);
+
+    /* UART must be disabled before any Control Register or
+     * Line Control Register are reprogrammed */
+    _uart_pl011_disable(p_uart);
+
+    /* Flush the transmit FIFO by disabling bit 4 (FEN) in
+     * the line control register (UARTCLR_H) */
+    _uart_pl011_disable_fifo(p_uart);
+
+    p_uart->uartcr |= (mask);
+
+    /* Enabling the FIFOs if previously enabled */
+    if(fifo_enabled) {
+        _uart_pl011_enable_fifo(p_uart);
+    }
+
+    /* Enabling the UART if previously enabled */
+    if(uart_enabled) {
+        _uart_pl011_enable(p_uart);
+    }
+}
+
+static void _uart_pl011_clear_cr_bit(struct _uart_pl011_reg_map_t* p_uart,
+                    uint32_t mask)
+{
+    bool uart_enabled = _uart_pl011_is_enabled(p_uart);
+    bool fifo_enabled = _uart_pl011_is_fifo_enabled(p_uart);
+
+    /* UART must be disabled before any Control Register or
+     * Line Control Register are reprogrammed */
+    _uart_pl011_disable(p_uart);
+
+    /* Flush the transmit FIFO by disabling bit 4 (FEN) in
+     * the line control register (UARTCLR_H) */
+    _uart_pl011_disable_fifo(p_uart);
+
+    p_uart->uartcr &= ~(mask);
+
+    /* Enabling the FIFOs if previously enabled */
+    if(fifo_enabled) {
+        _uart_pl011_enable_fifo(p_uart);
+    }
+
+    /* Enabling the UART if previously enabled */
+    if(uart_enabled) {
+        _uart_pl011_enable(p_uart);
+    }
+}
+
+static void _uart_pl011_set_lcr_h_bit(struct _uart_pl011_reg_map_t* p_uart,
+                    uint32_t mask)
+{
+    bool uart_enabled = _uart_pl011_is_enabled(p_uart);
+
+    /* UART must be disabled before any Control Register or
+     * Line Control Register are reprogrammed */
+    _uart_pl011_disable(p_uart);
+
+    p_uart->uartlcr_h |= (mask);
+
+    /* Enabling the UART if previously enabled */
+    if(uart_enabled) {
+        _uart_pl011_enable(p_uart);
+    }
+}
+
+static void _uart_pl011_clear_lcr_h_bit(struct _uart_pl011_reg_map_t* p_uart,
+                    uint32_t mask)
+{
+    bool uart_enabled = _uart_pl011_is_enabled(p_uart);
+
+    /* UART must be disabled before any Control Register or
+     * Line Control Register are reprogrammed */
+    _uart_pl011_disable(p_uart);
+
+    p_uart->uartlcr_h &= ~(mask);
+
+    /* Enabling the UART if previously enabled */
+    if(uart_enabled) {
+        _uart_pl011_enable(p_uart);
+    }
+}
+
+
+static bool _uart_pl011_is_readable(struct _uart_pl011_reg_map_t* uart)
 {
     if((uart->uartcr & UART_PL011_UARTCR_EN_MASK) &&
                 /* UART is enabled */
@@ -239,12 +357,33 @@ static bool _uart_pl011_is_readable(volatile struct _uart_pl011_reg_map_t* uart)
 }
 
 static enum uart_pl011_error_t _uart_pl011_read(
-                    volatile struct _uart_pl011_reg_map_t* uart, uint8_t* byte)
+                    struct _uart_pl011_reg_map_t* uart, uint8_t* byte)
 {
     *byte = uart->uartdr;
 
     return (enum uart_pl011_error_t)(uart->uartrsr
                                          & UART_PL011_RX_ERR_MASK);
+}
+
+static bool _uart_pl011_is_writable(struct _uart_pl011_reg_map_t* uart)
+{
+    if((uart->uartcr & UART_PL011_UARTCR_EN_MASK) &&
+                /* UART is enabled */
+        (uart->uartcr & UART_PL011_UARTCR_TX_EN_MASK) &&
+                /* Transmit is enabled */
+        ((uart->uartfr & UART_PL011_UARTFR_TX_FIFO_FULL) == 0)) {
+                /* Transmit Fifo is not full */
+        return true;
+    }
+    return false;
+
+}
+
+static void _uart_pl011_write(struct _uart_pl011_reg_map_t* uart, uint8_t byte)
+{
+    uart->uartdr = byte;
+
+    return;
 }
 
 
@@ -290,9 +429,34 @@ struct uart_cmsdk_apb_dev_data {
 #define DEV_DATA(dev) \
 	((struct uart_cmsdk_apb_dev_data * const)(dev)->driver_data)
 #define UART_STRUCT(dev) \
-	((volatile struct _uart_pl011_reg_map_t  *)(DEV_CFG(dev))->base)
+	((volatile struct uart_cmsdk_apb *)(DEV_CFG(dev))->base)
 
 static const struct uart_driver_api uart_cmsdk_apb_driver_api;
+
+/**
+ * @brief Set the baud rate
+ *
+ * This routine set the given baud rate for the UART.
+ *
+ * @param dev UART device struct
+ *
+ * @return N/A
+ */
+static void baudrate_set(struct device *dev)
+{
+	volatile struct uart_cmsdk_apb *uart = UART_STRUCT(dev);
+	const struct uart_device_config * const dev_cfg = DEV_CFG(dev);
+	struct uart_cmsdk_apb_dev_data *const dev_data = DEV_DATA(dev);
+	/*
+	 * If baudrate and/or sys_clk_freq are 0 the configuration remains
+	 * unchanged. It can be useful in case that Zephyr it is run via
+	 * a bootloader that brings up the serial and sets the baudrate.
+	 */
+	if ((dev_data->baud_rate != 0) && (dev_cfg->sys_clk_freq != 0)) {
+		/* calculate baud rate divisor */
+		uart->bauddiv = (dev_cfg->sys_clk_freq / dev_data->baud_rate);
+	}
+}
 
 /**
  * @brief Initialize UART channel
@@ -314,31 +478,28 @@ static int uart_cmsdk_apb_init(struct device *dev)
 #endif
 struct uart_cmsdk_apb_dev_data *const dev_data = DEV_DATA(dev);
 
-	_uart_pl011_disable(uart);
-
 	/* Set baud rate */
-//	err = _uart_pl011_set_baudrate(uart, CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC,
-//					dev_data->baud_rate);
+//	baudrate_set(dev);
+    err = _uart_pl011_set_baudrate(uart, CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC,
+                            dev_data->baud_rate);
 
- //   if(err != UART_PL011_ERR_NONE) {
-  //      return err;
- //   }
+    if(err != UART_PL011_ERR_NONE) {
+        return err;
+    }
 
-	/* Setting the default character format */
-	_uart_pl011_set_format(uart, UART_PL011_WLEN_8,
-				UART_PL011_PARITY_DISABLED,
-				UART_PL011_STOPBIT_1);
+    /* Setting the default character format */
+    _uart_pl011_set_format(uart, UART_PL011_WLEN_8,
+                                 UART_PL011_PARITY_DISABLED,
+                                 UART_PL011_STOPBIT_1);
 
     /* Enabling the FIFOs */
-  //  _uart_pl011_enable_fifo(uart);
+    _uart_pl011_enable_fifo(uart);
 
-	uart->uartifls = 0xffff;
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
-//	dev_cfg->irq_config_func(dev);
+	dev_cfg->irq_config_func(dev);
 #endif
 
-	uart->uartdmacr = 0;
-	_uart_pl011_enable(uart);
+    _uart_pl011_enable(uart);
 
 	return 0;
 }
@@ -381,13 +542,15 @@ static int uart_cmsdk_apb_poll_in(struct device *dev, unsigned char *c)
 static unsigned char uart_cmsdk_apb_poll_out(struct device *dev,
 					     unsigned char c)
 {
+	volatile struct uart_cmsdk_apb *uart = UART_STRUCT(dev);
+
 	/* Wait for transmitter to be ready */
-	while (UART_STRUCT(dev)->uartfr & BIT(5)) {
+	while (uart->state & UART_TX_BF) {
 		; /* Wait */
 	}
 
 	/* Send a character */
-	UART_STRUCT(dev)->uartdr = (u32_t)c;
+	uart->data = (u32_t)c;
 	return c;
 }
 
@@ -404,11 +567,18 @@ static unsigned char uart_cmsdk_apb_poll_out(struct device *dev,
 static int uart_cmsdk_apb_fifo_fill(struct device *dev,
 				    const u8_t *tx_data, int len)
 {
-	int i;
+	volatile struct uart_cmsdk_apb *uart = UART_STRUCT(dev);
+    int i = len;
 
-	for (i = 0; i < len; i++) {
-		uart_cmsdk_apb_poll_out(dev, tx_data[i]);
+	/* No hardware FIFO present */
+    while(i) {
+	if (len && !(uart->state & UART_TX_BF)) {
+		uart->data = *(tx_data + len - i);
+//		return 1;
 	}
+    i--;
+        }
+
 	return 0;
 }
 
@@ -460,7 +630,7 @@ static int uart_cmsdk_apb_fifo_read(struct device *dev,
  */
 static void uart_cmsdk_apb_irq_tx_enable(struct device *dev)
 {
-	UART_STRUCT(dev)->uartcr |= UART_TX_IN_EN;
+	UART_STRUCT(dev)->ctrl |= UART_TX_IN_EN;
 }
 
 /**
@@ -472,7 +642,7 @@ static void uart_cmsdk_apb_irq_tx_enable(struct device *dev)
  */
 static void uart_cmsdk_apb_irq_tx_disable(struct device *dev)
 {
-	UART_STRUCT(dev)->uartcr &= ~UART_TX_IN_EN;
+	UART_STRUCT(dev)->ctrl &= ~UART_TX_IN_EN;
 }
 
 /**
@@ -484,7 +654,7 @@ static void uart_cmsdk_apb_irq_tx_disable(struct device *dev)
  */
 static int uart_cmsdk_apb_irq_tx_ready(struct device *dev)
 {
-	return !(UART_STRUCT(dev)->uartfr & UART_TX_BF);
+	return !(UART_STRUCT(dev)->state & UART_TX_BF);
 }
 
 /**
@@ -496,7 +666,7 @@ static int uart_cmsdk_apb_irq_tx_ready(struct device *dev)
  */
 static void uart_cmsdk_apb_irq_rx_enable(struct device *dev)
 {
-	UART_STRUCT(dev)->uartcr |= UART_RX_IN_EN;
+	UART_STRUCT(dev)->ctrl |= UART_RX_IN_EN;
 }
 
 /**
@@ -508,7 +678,7 @@ static void uart_cmsdk_apb_irq_rx_enable(struct device *dev)
  */
 static void uart_cmsdk_apb_irq_rx_disable(struct device *dev)
 {
-	UART_STRUCT(dev)->uartcr &= ~UART_RX_IN_EN;
+	UART_STRUCT(dev)->ctrl &= ~UART_RX_IN_EN;
 }
 
 /**
@@ -532,7 +702,7 @@ static int uart_cmsdk_apb_irq_tx_complete(struct device *dev)
  */
 static int uart_cmsdk_apb_irq_rx_ready(struct device *dev)
 {
-	return UART_STRUCT(dev)->uartfr & UART_RX_BF;
+	return UART_STRUCT(dev)->state & UART_RX_BF;
 }
 
 /**
@@ -569,7 +739,7 @@ static void uart_cmsdk_apb_irq_err_disable(struct device *dev)
 static int uart_cmsdk_apb_irq_is_pending(struct device *dev)
 {
 	/* Return true if rx buffer full or tx buffer empty */
-	return (UART_STRUCT(dev)->uartfr & (UART_RX_BF | UART_TX_BF))
+	return (UART_STRUCT(dev)->state & (UART_RX_BF | UART_TX_BF))
 					!= UART_TX_BF;
 }
 
@@ -611,10 +781,11 @@ static void uart_cmsdk_apb_irq_callback_set(struct device *dev,
 void uart_cmsdk_apb_isr(void *arg)
 {
 	struct device *dev = arg;
+	volatile struct uart_cmsdk_apb *uart = UART_STRUCT(dev);
 	struct uart_cmsdk_apb_dev_data *data = DEV_DATA(dev);
 
 	/* Clear pending interrupts */
-	UART_STRUCT(dev)->uarticr = UART_RX_IN | UART_TX_IN;
+	uart->intclear = UART_RX_IN | UART_TX_IN;
 
 	/* Verify if the callback has been registered */
 	if (data->irq_cb) {
@@ -711,7 +882,7 @@ static void uart_cmsdk_apb_irq_config_func_0(struct device *dev)
 
 #endif /* CONFIG_UART_CMSDK_APB_PORT0 */
 
-#ifdef CONFIG_UART_CMSDK_APB_PORx
+#ifdef CONFIG_UART_CMSDK_APB_PORT1
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 static void uart_cmsdk_apb_irq_config_func_1(struct device *dev);
