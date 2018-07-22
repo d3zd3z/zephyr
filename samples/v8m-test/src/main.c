@@ -633,6 +633,7 @@ void main(void)
 	struct tfm_sst_jwt_t jwt_cmd;
 	enum psa_sst_err_t err;
 	uint32_t args[4] = {0};
+	const unsigned char *secure_address;
 	args[0] = 10;
 	args[1] = 0;
 	jwt_cmd.buffer = buffer;
@@ -654,10 +655,22 @@ void main(void)
 	if (err == 0) {
 		printk("token: %s\n\n", buffer);
 	}
-	k_sleep(K_MSEC(1000));
-	int len = strlen(buffer);
-	printk("\n\n(%d)\n\n", len);
-	char *pos = buffer;
+
+	args[0] = 10;
+	args[1] = 0;
+	args[2] = 0;
+	args[3] = &secure_address;
+	err = tfm_core_test_svc(tfm_veneer_jwt_get_address, args);
+	if (err == 0) {
+		printk("Reading from secure private key = %p\n", secure_address);
+		printk("%x\n", *secure_address);
+	}
+//	k_sleep(K_MSEC(1000));
+//	int len = strlen(buffer);
+//	printk("\n\n(%d)\n\n", len);
+//	char *pos = buffer;
+//	printk("%s\n", tmp);
+#if 0
 	while (len > 0) {
 		char tmp[11];
 		k_sleep(K_MSEC(1000));
@@ -668,6 +681,7 @@ void main(void)
 		len -= tlen;
 		pos += tlen;
 	}
+#endif
 	printk("\n\nAfter the token: %ld ticks\n", b - a);
 	while (1) {
 		k_sleep(K_MSEC(1000));
