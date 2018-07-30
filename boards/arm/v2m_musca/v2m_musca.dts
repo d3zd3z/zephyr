@@ -22,7 +22,7 @@
 
 	sram0: memory {
 		compatible = "mmio-sram";
-		reg = <0x20010000 0x100000>;
+		reg = <0x20008000 0x18000>;
 	};
 
 	flash0: flash {
