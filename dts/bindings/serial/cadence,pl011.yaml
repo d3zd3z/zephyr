@@ -1,0 +1,30 @@
+---
+title: Cadence PL011 UART
+id: cadence,pl011
+version: 0.1
+
+description: >
+    This binding gives a base representation of the Cadence PL011 Uart
+
+inherits:
+    !include uart.yaml
+
+properties:
+    compatible:
+      type: string
+      category: required
+      description: compatible strings
+      constraint: "cadence,pl011"
+
+    reg:
+      type: array
+      description: mmio register space
+      generation: define
+      category: required
+
+    interrupts:
+      type: array
+      category: required
+      description: required interrupts
+      generation: define
+...
