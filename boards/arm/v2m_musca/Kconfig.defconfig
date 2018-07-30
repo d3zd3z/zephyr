@@ -28,16 +28,16 @@ endif # PINMUX
 
 if SERIAL
 
-config UART_CMSDK_APB
+config UART_PL011
 	def_bool y
 
 config UART_INTERRUPT_DRIVEN
 	def_bool y
 
-config UART_CMSDK_APB_PORT0
+config UART_PL011_PORT0
 	def_bool y
 
-config UART_CMSDK_APB_PORT1
+config UART_PL011_PORT1
 	def_bool y
 
 endif # SERIAL

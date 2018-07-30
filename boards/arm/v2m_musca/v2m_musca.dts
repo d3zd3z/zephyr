@@ -55,19 +55,19 @@
 		};
 
 		uart0: uart@40101000 {
-			compatible = "arm,cmsdk-uart";
+			compatible = "cadence,pl011";
 			reg = <0x40101000 0x1000>;
-			interrupts = <33 3 32 3>;
-			interrupt-names = "tx", "rx";
+			interrupts = <39 3 40 3 41 3 43 3>;
+			interrupt-names = "rx", "tx", "rxtim", "err";
 			current-speed = <115200>;
 			label = "UART_0";
 		};
 
 		uart1: uart@40102000 {
-			compatible = "arm,cmsdk-uart";
+			compatible = "cadence,pl011";
 			reg = <0x40102000 0x1000>;
-			interrupts = <35 3 34 3>;
-			interrupt-names = "tx", "rx";
+			interrupts = <45 3 46 3 47 3 49 3>;
+			interrupt-names = "rx", "tx", "rxtim", "err";
 			current-speed = <115200>;
 			label = "UART_1";
 		};
