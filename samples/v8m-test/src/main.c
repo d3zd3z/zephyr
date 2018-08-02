@@ -639,8 +639,13 @@ void main(void)
 	jwt_cmd.buffer_size = (sizeof(buffer));
 	jwt_cmd.iat = 1532120018;
 	jwt_cmd.exp = jwt_cmd.iat + 60 * 60;
+#if 1
 	jwt_cmd.aud = "simple-demo";
 	jwt_cmd.aud_len = strlen(jwt_cmd.aud);
+#else
+	jwt_cmd.aud = (void *)0x1022a258;
+	jwt_cmd.aud_len = 32;  /* Note that this is ignored. */
+#endif
 	args[2] = 0;
 	args[3] = &jwt_cmd;
 	err = tfm_core_test_svc(tfm_veneer_jwt_sign, args);
