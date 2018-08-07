@@ -656,6 +656,26 @@ void main(void)
 		printk("token: %s\n\n", buffer);
 	}
 
+	struct tfm_sst_jwt_t *secure_cmd;
+	args[0] = 10;
+	args[1] = 0;
+	args[2] = 0;
+	args[3] = (uint32_t)&secure_cmd;
+	err = tfm_core_test_svc(tfm_veneer_jwt_get_token_addr, args);
+	if (err == 0) {
+		printk("secure token request buffer: %p\n", secure_cmd);
+
+		/* With the command request buffer on the secure side,
+		 * try requesting it on the other side to ensure this
+		 * is checked. */
+		args[0] = 10;
+		args[1] = 0;
+		args[2] = 0;
+		args[3] = (uint32_t)secure_cmd;
+		err = tfm_core_test_svc(tfm_veneer_jwt_sign, args);
+		printk("secure call status: %d\n", err);
+	}
+
 	args[0] = 10;
 	args[1] = 0;
 	args[2] = 0;
