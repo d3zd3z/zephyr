@@ -13,4 +13,9 @@ config NUM_IRQS
 	int
 	default 96
 
+if ARM_SECURE_FIRMWARE
+config BUILD_HEX_OUTPUT
+	def_bool y
+endif
+
 endif
