@@ -17,5 +17,7 @@ zephyr_compile_options(
   ${ARCH_FLAG}
   )
 
+zephyr_compile_options_ifdef(CONFIG_CPU_CORTEX_M_HAS_CMSE -mcmse)
+
 add_subdirectory(soc)
 add_subdirectory(core)
