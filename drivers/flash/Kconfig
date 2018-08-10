@@ -59,6 +59,14 @@ config SOC_FLASH_MCUX
 	  have an impact on the overall system performance - whether
 	  this is acceptable or not will depend on the use case.
 
+config SOC_FLASH_MUSCA
+	bool "Musca QSPI flash driver"
+	depends on FLASH && BOARD_MUSCA_A
+	select FLASH_HAS_PAGE_LAYOUT
+	select FLASH_HAS_DRIVER_ENABLED
+	help
+	  Enable Musca QPSI flash driver.
+
 config SOC_FLASH_NIOS2_QSPI
 	bool "Nios-II QSPI flash driver"
 	depends on FLASH && HAS_ALTERA_HAL

@@ -92,4 +92,7 @@
 #define I2C_SBCON_1_NAME			ARM_VERSATILE_I2C_40105000_LABEL
 #endif
 
+/* Fake flash device. */
+#define FLASH_DEV_NAME		"MUSCA_FLASH"
+
 /* End of SoC Level DTS fixup file */

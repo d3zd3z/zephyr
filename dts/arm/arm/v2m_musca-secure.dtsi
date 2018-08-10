@@ -4,9 +4,19 @@
 		reg = <0x30000000 0x20000>;
 	};
 
-	flash0: flash@10200000 {
-		reg = <0x10200000 0x800000>;
+	/* flash0 isn't a real flash device, but is instead where code
+	 * will be copied into RAM.  The partitions should mirror the
+	 * partitions in flash1, the real external flash. */
+	flash0: flash@10000000 {
+		/* reg = <0x10200000 0x800000>; */
+		reg = <0x10000000 0x800000>;
 	};
+
+/*
+	flash1: flash@10200000 {
+		reg = <0x10200000 0x80000>;
+	};
+*/
 
 	soc {
 		timer0: timer@50000000 {
