@@ -105,6 +105,52 @@ SECTION_SUBSEC_FUNC(TEXT,_reset_section,__start)
 
     b _PrepC
 
+#if defined(CONFIG_XIP_COPY)
+/*
+ * On XIP-but-copied to RAM, we need to copy all of text+data down.
+ */
+GTEXT(__reset_copy)
+SECTION_FUNC(TEXT, __reset_copy)
+#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+	cpsid i
+#elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
+	movs.n r0, #_EXC_IRQ_DEFAULT_PRIO
+	msr BASEPRI, r0
+#else
+#error Unknown ARM architecture
+#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
+	ldr	r1, =_image_rom_start
+
+	/* Compute the end address, as the end of the data rom */
+	/* ldr	r3, =_image_rom_end */
+	ldr	r3, =__data_rom_start
+	ldr	r4, =__data_ram_start
+	ldr	r5, =__data_ram_end
+	sub	r4, r5, r4
+	add	r3, r3, r4
+
+	/* Adjust the addresses of the source to be in the ROM where
+	 * they came from. TODO: Get this value from symbols.
+	 */
+	ldr	r0, =CONFIG_XIP_COPY_FLASH_OFFSET
+	add	r2, r1, r0
+	add	r3, r3, r0
+.L1:
+	ldr	r0, [r2], #4
+	str	r0, [r1], #4
+
+	cmp	r2, r3
+	bne	.L1
+
+/* .L3:	b	.L3 */
+
+	dsb	sy
+	isb	sy
+	/* Jump to the real reset vector. */
+	ldr	r0, =__reset
+	bx	r0
+#endif
+
 #if defined(CONFIG_SOC_TI_LM3S6965_QEMU)
 
 GTEXT(_do_software_reboot)

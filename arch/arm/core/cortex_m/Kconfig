@@ -313,6 +313,37 @@ config XIP
 	default y
 endmenu
 
+config XIP_COPY
+	bool
+	default n
+	prompt "Enable reset handler that copies image from flash"
+	depends on XIP
+	help
+	  Normally, XIP code runs at the address it has been linked
+	  at, and non-XIP code is copied by some type of bootloader
+	  into RAM before running.  There are a few configurations
+	  (usually when implementing such a bootloader) where the code
+	  needs to be build as if XIP, but needs to copy the image
+	  from flash itself before starting.
+
+	  Enabling this setting replaces the reset vector with a
+	  routine that copies the image from XIP_COP_FLASH_BASE into
+	  the address that the code is linked at.
+
+config XIP_COPY_FLASH_OFFSET
+	hex
+	default 0x00200000
+	prompt "Offset between code RAM and storage FLASH"
+	depends on XIP_COPY
+	help
+	  This is the offset between the address code is linked to run
+	  at (code RAM), and the flash address where it is stored.
+	  The XIP_COPY feature uses this to determine the address to
+	  copy from.
+
+	  It needs to be an offset due to limitations in arithmetic
+	  available in the assembler.
+
 menu "ARM Cortex-M0/M0+/M3/M4/M7/M23/M33 options"
     depends on ARMV6_M_ARMV8_M_BASELINE || ARMV7_M_ARMV8_M_MAINLINE
 

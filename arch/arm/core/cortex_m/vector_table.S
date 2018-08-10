@@ -35,7 +35,11 @@ SECTION_SUBSEC_FUNC(exc_vector_table,_vector_table_section,_vector_table)
      */
     .word _main_stack + CONFIG_MAIN_STACK_SIZE
 
+#if defined(CONFIG_XIP_COPY)
+    .word __reset_copy + CONFIG_XIP_COPY_FLASH_OFFSET
+#else
     .word __reset
+#endif
     .word __nmi
 
     .word __hard_fault
