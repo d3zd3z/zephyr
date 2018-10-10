@@ -1,0 +1,16 @@
+# Kconfig - CPRNG configuration options
+#
+# Copyright (c) 2018 Linaro Ltd.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig CPRNG
+	bool "CPRNG Generators"
+	help
+	  Enable Cryptographic Pseudo Random Number Generators
+	  (CPRNG).  These generators take a source of entropy from an
+	  entropy driver, and generate a stream of bytes usable for
+	  cryptographic purposes.  Select one of the available drivers
+	  below.
+
+
