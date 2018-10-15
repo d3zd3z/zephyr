@@ -81,6 +81,17 @@
 			status = "disabled";
 			label = "uart_6";
 		};
+
+		psoc6_ipm7: mailbox@402300E0 {
+			compatible = "cypress,psoc6-mailbox";
+			reg = <0x402300E0 0x20>;
+			channels = <7 8 9>;
+			channel-names = "base", "notify", "release";
+			interrupts = <23 0>, <25 2>;
+			interrupt-names = "srv_base", "client_base";
+			status = "disabled";
+			label = "psoc6_ipm7";
+		};
 	};
 };
 
