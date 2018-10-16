@@ -1,1 +1,4 @@
-# empty
+zephyr_sources_ifdef(CONFIG_CPRNG_DRBG_CTR_MBED cprng_ctr_mbed.c)
+
+zephyr_link_interface_ifdef(CONFIG_MBEDTLS mbedTLS)
+zephyr_link_libraries_ifdef(CONFIG_MBEDTLS mbedTLS)

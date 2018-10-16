@@ -13,4 +13,11 @@ menuconfig CPRNG
 	  cryptographic purposes.  Select one of the available drivers
 	  below.
 
+choice
+	prompt "CPRNG Selection"
 
+config CPRNG_DRBG_CTR_MBED
+	bool "cprng based on DRBG-CTR from mbed TLS"
+	depends on MBEDTLS && ENTROPY_GENERATOR
+
+endchoice

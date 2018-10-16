@@ -29,7 +29,17 @@ extern "C" {
 #include <zephyr/types.h>
 #include <device.h>
 
+#if defined(CONFIG_CPRNG_DRBG_CTR_MBED)
+
+#include <mbedtls/ctr_drbg.h>
+
+struct cprng_gen {
+	mbedtls_ctr_drbg_context context;
+	struct device *entropy_dev;
+};
+#else
 #error "No CPRNG backend selected"
+#endif
 
 /**
  * @brief Initialize the CPRNG structure.
