@@ -13,17 +13,17 @@
 	compatible = "cy8ckit_062_wifi_bt_m0", "PSoC6";
 
 	aliases {
-		uart-6 = &uart6;
+		uart-5 = &uart5;
 	};
 
 	chosen {
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
-		zephyr,console = &uart6;
+		zephyr,console = &uart5;
 	};
 };
 
-&uart6 {
+&uart5 {
 	status = "ok";
 	current-speed = <115200>;
 };
