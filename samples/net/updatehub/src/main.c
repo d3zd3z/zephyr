@@ -22,6 +22,9 @@ void main(void)
 	int ret = -1;
 
 	LOG_INF("UpdateHub sample app started");
+	LOG_INF("Doing nothing!!!");
+	while (1) {
+	}
 
 #if defined(CONFIG_UPDATEHUB_DTLS)
 	if (tls_credential_add(CA_CERTIFICATE_TAG,

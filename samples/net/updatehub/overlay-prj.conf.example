@@ -18,4 +18,4 @@ CONFIG_UPDATEHUB_CE=y
 
 #You need set the updatehub-ce ip Address.
 #This is a example of ip address
-CONFIG_UPDATEHUB_SERVER="10.5.3.67"
+CONFIG_UPDATEHUB_SERVER="coap.updatehub.io"

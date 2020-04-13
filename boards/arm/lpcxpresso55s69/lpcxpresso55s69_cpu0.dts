@@ -26,9 +26,16 @@
 	chosen {
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
+/* Upstream
 		zephyr,code-partition = &sramx;
 		zephyr,console = &flexcomm0;
 		zephyr,shell-uart = &flexcomm0;
+*/
+/* Mine */
+		zephyr,code-partition = &slot0_partition;
+		zephyr,console = &flexcomm0;
+		zephyr,shell-uart = &flexcomm0;
+/* */
 	};
 
 	gpio_keys {
@@ -88,7 +95,7 @@
 
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x00000000 0x00010000>;
+			reg = <0x00000000 0x00020000>;
 			read-only;
 		};
 		/*

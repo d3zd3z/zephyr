@@ -162,6 +162,7 @@ static bool start_coap_client(void)
 	}
 
 #if defined(CONFIG_UPDATEHUB_DTLS)
+	// int verify = TLS_PEER_VERIFY_REQUIRED;
 	int verify = TLS_PEER_VERIFY_NONE;
 	sec_tag_t sec_list[] = { CA_CERTIFICATE_TAG };
 	int protocol = IPPROTO_DTLS_1_2;
@@ -172,7 +173,9 @@ static bool start_coap_client(void)
 #endif
 
 	while (resolve_attempts--) {
+		LOG_ERR("Lookup: %s", UPDATEHUB_SERVER);
 		ret = getaddrinfo(UPDATEHUB_SERVER, port, &hints, &addr);
+		LOG_ERR("Trying to resolve dns: %d", ret);
 		if (ret == 0) {
 			break;
 		}
@@ -725,6 +728,7 @@ enum updatehub_response updatehub_probe(void)
 				   recv_probe_sh_string_descr,
 				   ARRAY_SIZE(recv_probe_sh_string_descr),
 				   &metadata_any_boards) < 0) {
+			LOG_ERR("Metadata: %s", metadata_copy);
 			LOG_ERR("Could not parse json");
 			ctx.code_status = UPDATEHUB_METADATA_ERROR;
 			goto cleanup;
