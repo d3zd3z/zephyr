@@ -1,0 +1,9 @@
+[package]
+name = "rust-hello"
+version = "0.1.0"
+edition = "2021"
+description = "A simple hello world from Rust"
+license = "Apache-2.0 or MIT"
+
+[lib]
+crate-type = ["staticlib"]
